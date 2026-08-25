@@ -4,6 +4,7 @@ import { can } from '@/lib/permissions'
 import { notify } from '@/lib/notifications'
 import { getAppUrl } from '@/lib/get-app-url'
 import { internalApprovalDecidedEmail } from '@/lib/email/templates'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ApprovalStatus, ContentItem, InternalApproval, Member } from '@/lib/types'
 
 /** IDs (user_id) de todos os membros ativos da org com permissão de aprovar internamente. */
@@ -145,6 +146,12 @@ export async function applyInternalApprovalDecision(
       }),
     })
   }
+
+  await dispatchWebhookEvent(supabase, {
+    orgId,
+    eventType: decision === 'aprovado' ? 'approval.approved' : 'approval.changes_requested',
+    payload: { content, approval, kind: 'internal' },
+  })
 
   return { ok: true, approval: approval as InternalApproval, content }
 }

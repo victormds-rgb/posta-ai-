@@ -5,6 +5,7 @@ import { publishPost } from '@/lib/upload-post'
 import { getOrgUploadPostKey } from '@/lib/org-upload-post'
 import { can } from '@/lib/permissions'
 import { assertContentIsPublishable } from '@/lib/approvals'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ClientSocialProfile, ContentItem } from '@/lib/types'
 
 export async function POST(request: Request) {
@@ -83,6 +84,8 @@ export async function POST(request: Request) {
     entity_id: contentId,
     details: { channels: content.channels },
   })
+
+  await dispatchWebhookEvent(supabase, { orgId: ctx.organization.id, eventType: 'content.published', payload: { content: updated } })
 
   return NextResponse.json({ item: updated })
 }

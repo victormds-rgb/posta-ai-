@@ -3,6 +3,7 @@ import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ContentItem } from '@/lib/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -58,6 +59,11 @@ export async function PATCH(request: Request, { params }: Params) {
       entity_id: id,
       details: { status: updates.status },
     })
+
+    await dispatchWebhookEvent(supabase, { orgId: ctx.organization.id, eventType: 'content.status_changed', payload: { content: data } })
+    if (updates.status === 'publicado') {
+      await dispatchWebhookEvent(supabase, { orgId: ctx.organization.id, eventType: 'content.published', payload: { content: data } })
+    }
   }
 
   return NextResponse.json({ item: data as ContentItem })

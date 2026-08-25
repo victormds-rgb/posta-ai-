@@ -3,6 +3,7 @@ import { createAdminSupabase } from '@/lib/supabase/server'
 import { publishPost } from '@/lib/upload-post'
 import { getOrgUploadPostKey } from '@/lib/org-upload-post'
 import { assertContentIsPublishable } from '@/lib/approvals'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ClientSocialProfile, ContentItem, Organization } from '@/lib/types'
 
 /**
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
       continue
     }
 
-    await supabase
+    const { data: updated } = await supabase
       .from('content_items')
       .update({
         status: 'publicado',
@@ -70,6 +71,10 @@ export async function GET(request: Request) {
         upload_post_job_id: publishResult.data?.job_id || null,
       })
       .eq('id', item.id)
+      .select('*')
+      .single()
+
+    await dispatchWebhookEvent(supabase, { orgId: item.org_id, eventType: 'content.published', payload: { content: updated } })
 
     results.push({ id: item.id, ok: true })
   }

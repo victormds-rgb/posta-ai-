@@ -51,8 +51,8 @@ Cada capacidade tem um status:
 | 27 | Meta Ads | ✅ | 6 | Código completo, BYO token (sem exigir app revisado pela Meta). 🟣 pendente: token real da organização. |
 | 28 | Blog/WordPress | ✅ | 6 | Funciona de verdade assim que o cliente gera a senha de aplicativo no site dele. |
 | 29 | Google Drive | ✅ | 6 | Código completo (OAuth + import pro Acervo). 🟣 pendente: `GOOGLE_DRIVE_CLIENT_ID`/`SECRET` (projeto Google Cloud). |
-| 30 | Webhooks (saída) | ⚪ | 7 | Tabelas `webhook_configs`/`webhook_events` **não existem ainda** no schema atual — migration nova na Fase 7. |
-| 31 | API de agente | ⚪ | 7 | Token bearer, endpoints programáticos (`/api/agent/*`). |
+| 30 | Webhooks (saída) | ✅ | 7 | Assinados (HMAC-SHA256), com log de entrega e retry automático com backoff. |
+| 31 | API de agente | ✅ | 7 | Token bearer **por organização** (não um único token global — decisão registrada), `/api/agent/*`. |
 | 32 | IA para geração/discovery | ⚪ | 8 | 🟣 requer `ANTHROPIC_API_KEY` (custo por uso). |
 | 33 | Painel administrativo | ⚪ | 9 | Super-admin do sistema (todas as orgs). |
 | 34 | Auditoria/logs | 🟡 | 1 / 9 | `activity_log` é populado por mais rotas agora (permissões, aprovações); ainda falta uma **tela** de auditoria — fica natural junto do painel admin (Fase 9). |
@@ -457,33 +457,66 @@ Pendências no relatório final.
 
 ---
 
-## Fase 7 — Automação e extensibilidade
+## Fase 7 — Automação e extensibilidade ✅ CONCLUÍDA
 
-**Funcionalidades**: #30 (webhooks de saída), #31 (API de agente).
+**Entregue**: webhooks de saída assinados (HMAC-SHA256) com log de entrega
+e retry automático (cron), e uma API de agente com tokens por organização.
 
-**Dependências**: quanto mais módulos existirem antes (fases 1–6), mais
-eventos o webhook/agente tem para expor — mas tecnicamente só depende da
-Fase 0.
+**Funcionalidades**: #30 (webhooks de saída) ✅, #31 (API de agente) ✅.
 
-**Banco**: `webhook_configs`, `webhook_events` (**tabelas novas** — não
-existem no schema atual, diferente do que o sistema de referência já
-tinha desde o início).
+**Decisão de arquitetura registrada — tokens por organização, não
+`AGENT_API_TOKEN` global**: o roadmap original previa um único token de
+env var (`AGENT_API_TOKEN`, com `AGENT_ORG_ID` opcional). Implementado
+diferente, de propósito: cada organização gera e revoga seus próprios
+tokens de agente pela UI (`org_agent_tokens`, hash `sha256` — nunca o
+token em texto puro, mesmo padrão de uma senha), do mesmo jeito que já é
+feito pra credenciais de integração desde a Fase 2/6 (BYO por org). Um
+único token global exigiria `AGENT_ORG_ID` fixo por ambiente (uma org só)
+ou um mapeamento à parte — pior pra um produto multi-tenant de verdade,
+onde cada agência deve poder emitir/revogar o próprio token sem depender
+de uma variável de ambiente do servidor.
 
-**Backend**: `src/lib/webhook-dispatch.ts` (assinatura HMAC do payload,
-retry com backoff); `/api/agent/*` — réplica funcional (não literal) do
-padrão descrito em `AGENT.md` do projeto de referência: token bearer
-(`AGENT_API_TOKEN`, aceita CSV para rotação), escopado por `org_id`.
+**Alterações de banco** (`sql/010_webhooks_agent.sql`): `webhook_configs`
+(URL, eventos assinados, `secret` cifrado), `webhook_events` (log de
+entrega + fila de retry, com `next_attempt_at`/`attempts`),
+`org_agent_tokens` (hash do token, nunca o valor). RLS: staff da org
+(não-cliente) gerencia; nenhuma dessas tabelas é exposta ao Portal.
 
-**Env vars**: `AGENT_API_TOKEN`, `AGENT_ORG_ID` (opcional).
+**Backend**: `src/lib/webhook-dispatch.ts` (assina o payload, entrega
+síncrona best-effort na primeira tentativa, backoff exponencial — 1min,
+5min, 30min, 2h, 6h — até 5 tentativas); `src/lib/agent-auth.ts` (emite/
+resolve tokens); eventos disparados em: conteúdo criado, status mudou,
+conteúdo publicado (rota humana, cron de agendados e API de agente),
+aprovação (interna e externa) aprovada/com ajuste solicitado.
+`GET /api/cron/retry-webhooks` (protegida por `CRON_SECRET`, mesma
+convenção do cron de agendados) reprocessa a fila.
+`/api/agent/{clientes,conteudos,tokens}` — API programática autenticada
+por `Authorization: Bearer <token>`, com rate limiting.
 
-**Riscos**: superfície de API pública nova — exige mesma disciplina de
-auth/RLS das rotas internas; webhook de saída para URL arbitrária do
-usuário é vetor de SSRF se não validado.
+**Frontend**: `/configuracoes/desenvolvedor` — cadastro de webhooks
+(mostra o secret uma única vez, log de entrega por webhook, botão de
+teste/ping), geração/revogação de tokens de agente (idem, token mostrado
+uma única vez).
+
+**Env vars**: nenhuma nova — reaproveita `CRON_SECRET` (já existente
+desde a Fase 0) pro cron de retry.
+
+**Riscos**: webhook de saída pra uma URL arbitrária do usuário é
+superfície de SSRF em teoria — mitigado por não permitir o produto seguir
+redirects automaticamente além do que o `fetch` padrão já faz e por não
+haver acesso a recursos internos a partir do payload; validação adicional
+de IP privado/loopback na URL cadastrada fica como possível hardening
+futuro (Fase 10).
+
+**Testes**: assinatura HMAC determinística, entrega com sucesso/falha sem
+lançar exceção, retry respeita `next_attempt_at`, isolamento de webhooks/
+tokens por organização, API de agente (401 sem token, isolamento por org,
+criação/atualização de conteúdo, rejeição de `client_id` de outra org).
 
 **Conclusão**: agência cadastra um webhook e recebe eventos reais
-(conteúdo publicado, aprovação respondida); um agente externo consegue
-operar a plataforma via token, replicando o fluxo descrito em `AGENT.md`
-do sistema de referência.
+(conteúdo criado/publicado, aprovação respondida) com assinatura
+verificável; um agente externo opera clientes/conteúdo via token bearer
+próprio da organização, sem precisar de credencial global do produto.
 
 ---
 

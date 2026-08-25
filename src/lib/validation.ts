@@ -154,6 +154,45 @@ export const googleDriveImportSchema = z.object({
   folder_id: z.string().uuid(),
 })
 
+const WEBHOOK_EVENT_TYPES = [
+  'content.created',
+  'content.status_changed',
+  'content.published',
+  'approval.approved',
+  'approval.changes_requested',
+] as const
+
+export const webhookCreateSchema = z.object({
+  url: z.string().trim().url().max(1000),
+  events: z.array(z.enum(WEBHOOK_EVENT_TYPES)).min(1, 'Selecione ao menos um evento'),
+})
+
+export const webhookUpdateSchema = z.object({
+  url: z.string().trim().url().max(1000).optional(),
+  events: z.array(z.enum(WEBHOOK_EVENT_TYPES)).min(1).optional(),
+  active: z.boolean().optional(),
+})
+
+export const agentTokenCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(255),
+})
+
+export const agentContentCreateSchema = z.object({
+  client_id: z.string().uuid('client_id inválido'),
+  title: z.string().trim().min(1).max(500),
+  content_type: z.enum(['post', 'carrossel', 'reels', 'story', 'video']).default('post'),
+  caption: z.string().trim().max(5000).optional(),
+  description: z.string().trim().max(5000).optional(),
+  media_urls: z.array(z.string().url()).max(20).default([]),
+  channels: z.array(z.string()).max(10).default([]),
+})
+
+export const agentContentUpdateSchema = z.object({
+  status: z.enum(['ideia', 'producao', 'aprovacao_interna', 'aprovacao_cliente', 'agendado', 'publicado']).optional(),
+  caption: z.string().trim().max(5000).optional(),
+  media_urls: z.array(z.string().url()).max(20).optional(),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),

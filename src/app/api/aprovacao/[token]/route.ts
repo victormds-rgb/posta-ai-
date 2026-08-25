@@ -6,6 +6,7 @@ import { parseBody, approvalDecisionSchema } from '@/lib/validation'
 import { serverError } from '@/lib/errors'
 import { getAppUrl } from '@/lib/get-app-url'
 import { externalApprovalDecidedEmail } from '@/lib/email/templates'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ApprovalLink, Client, ContentItem } from '@/lib/types'
 
 type Params = { params: Promise<{ token: string }> }
@@ -108,6 +109,12 @@ export async function POST(request: Request, { params }: Params) {
         : undefined,
     })
   }
+
+  await dispatchWebhookEvent(supabase, {
+    orgId: link.org_id,
+    eventType: action === 'aprovado' ? 'approval.approved' : 'approval.changes_requested',
+    payload: { content, kind: 'external', comment: body.comment || null },
+  })
 
   return NextResponse.json({ success: true })
 }

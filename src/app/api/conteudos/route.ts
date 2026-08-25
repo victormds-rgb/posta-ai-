@@ -6,6 +6,7 @@ import { can } from '@/lib/permissions'
 import { parseBody, contentCreateSchema } from '@/lib/validation'
 import { assertWithinContentLimit } from '@/lib/plan-limits'
 import { getPortalClientIds } from '@/lib/portal'
+import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
 import type { ContentItem } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -94,6 +95,8 @@ export async function POST(request: Request) {
     entity_id: (data as ContentItem).id,
     details: { title: (data as ContentItem).title },
   })
+
+  await dispatchWebhookEvent(supabase, { orgId: ctx.organization.id, eventType: 'content.created', payload: { content: data } })
 
   return NextResponse.json({ item: data as ContentItem }, { status: 201 })
 }

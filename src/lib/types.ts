@@ -285,6 +285,50 @@ export interface OrgMetaAdsConfig {
   connected_at: string
 }
 
+export type WebhookEventType =
+  | 'content.created'
+  | 'content.status_changed'
+  | 'content.published'
+  | 'approval.approved'
+  | 'approval.changes_requested'
+
+/** Webhook de saída — a organização cadastra a URL própria. */
+export interface WebhookConfig {
+  id: string
+  org_id: string
+  url: string
+  events: WebhookEventType[]
+  active: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export type WebhookEventStatus = 'pending' | 'success' | 'failed'
+
+export interface WebhookEvent {
+  id: string
+  org_id: string
+  webhook_config_id: string
+  event_type: string
+  payload: Record<string, unknown>
+  status: WebhookEventStatus
+  attempts: number
+  last_error: string | null
+  next_attempt_at: string
+  delivered_at: string | null
+  created_at: string
+}
+
+/** Token de API de agente — por organização, hash guardado (nunca o token em texto puro). */
+export interface OrgAgentToken {
+  id: string
+  org_id: string
+  name: string
+  token_prefix: string
+  last_used_at: string | null
+  created_at: string
+}
+
 export interface ApprovalLink {
   id: string
   content_id: string

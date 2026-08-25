@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { CreditCard } from 'lucide-react'
+import { CreditCard, Webhook } from 'lucide-react'
 import { getCurrentContext } from '@/lib/org'
 import { SettingsForm } from '@/components/settings/settings-form'
 import { CommunicationSettings } from '@/components/settings/communication-settings'
@@ -30,6 +30,18 @@ export default async function ConfiguracoesPage() {
             <div>
               <p className="font-medium">Assinatura</p>
               <p className="text-sm text-muted">Plano atual: {ctx.organization.plan}</p>
+            </div>
+          </Card>
+        </Link>
+      )}
+
+      {ctx.permissions.manageIntegrations && (
+        <Link href="/configuracoes/desenvolvedor" className="mt-4 block">
+          <Card className="flex items-center gap-3 p-4 hover:shadow-md">
+            <Webhook className="size-5 text-brand" />
+            <div>
+              <p className="font-medium">Webhooks e API de agente</p>
+              <p className="text-sm text-muted">Integrações programáticas com sistemas externos</p>
             </div>
           </Card>
         </Link>
