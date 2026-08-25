@@ -53,7 +53,7 @@ Cada capacidade tem um status:
 | 29 | Google Drive | ✅ | 6 | Código completo (OAuth + import pro Acervo). 🟣 pendente: `GOOGLE_DRIVE_CLIENT_ID`/`SECRET` (projeto Google Cloud). |
 | 30 | Webhooks (saída) | ✅ | 7 | Assinados (HMAC-SHA256), com log de entrega e retry automático com backoff. |
 | 31 | API de agente | ✅ | 7 | Token bearer **por organização** (não um único token global — decisão registrada), `/api/agent/*`. |
-| 32 | IA para geração/discovery | ⚪ | 8 | 🟣 requer `ANTHROPIC_API_KEY` (custo por uso). |
+| 32 | IA para geração/discovery | ✅ | 8 | Sem raspagem automática (decisão de ToS) — referência colada manualmente. 🟣 pendente `ANTHROPIC_API_KEY`. |
 | 33 | Painel administrativo | ⚪ | 9 | Super-admin do sistema (todas as orgs). |
 | 34 | Auditoria/logs | 🟡 | 1 / 9 | `activity_log` é populado por mais rotas agora (permissões, aprovações); ainda falta uma **tela** de auditoria — fica natural junto do painel admin (Fase 9). |
 | 35 | Permissões granulares | ✅ | 1 | `members.custom_permissions` (override parcial sobre o padrão do role), com UI de edição em Equipe e enforcement no servidor em toda rota de escrita. |
@@ -520,25 +520,54 @@ próprio da organização, sem precisar de credencial global do produto.
 
 ---
 
-## Fase 8 — IA para geração/discovery de conteúdo 🟣 dependência externa
+## Fase 8 — IA para geração/discovery de conteúdo ✅ CONCLUÍDA (🟣 pendente credencial real)
 
-**Funcionalidades**: #32.
+**Funcionalidades**: #32 ✅ código completo, 🟣 pendente `ANTHROPIC_API_KEY` real.
 
-**Dependências**: Fase 5 (campanhas) e Fase 0 (conteúdo) — a IA gera
-`content_items` rascunho, não um módulo isolado.
+**Dependências**: Fase 5 (campanhas) e Fase 0 (conteúdo) — usadas: um
+rascunho gerado pode ser vinculado a uma campanha e vira `content_item`
+real no kanban ao ser aceito.
 
-**Banco**: `content_sources`, `discovered_content`, `creation_queue`,
-`knowledge_base` (mapeados em `ANALISE-POSTZAP.md`, módulo V4 do sistema
-de referência).
+**Decisão de coleta de referência registrada (risco de ToS apontado no
+roadmap original)**: **nenhuma raspagem automática de Instagram/TikTok/
+etc. foi implementada.** Em vez de "discovery" autônomo, a equipe cola
+manualmente o material de referência (`content_sources`) — a IA só
+analisa o que foi colado por um humano, nunca sai coletando conteúdo de
+terceiros sozinha. Isso elimina de vez a área cinzenta de ToS apontada no
+roadmap original, ao custo de não ter descoberta automática — decisão
+deliberada, não uma limitação técnica.
 
-**Env vars**: `ANTHROPIC_API_KEY` — **custo por uso**, ver Riscos.
+**Alterações de banco** (`sql/011_ai_content.sql`): `content_sources`
+(referência colada manualmente + análise da IA quando pedida),
+`ai_generations` (fila de rascunhos — só vira `content_item` de verdade
+quando um humano clica em "Aceitar"; nunca é publicado automaticamente).
+RLS: staff da org, não exposto ao Portal do cliente.
 
-**Riscos**: raspagem de conteúdo de terceiros (Instagram/TikTok) é uma
-área cinzenta de ToS das plataformas — decidir explicitamente o método de
-coleta (API oficial vs. scraping) antes de implementar.
+**Backend**: `src/lib/anthropic.ts` (Messages API via fetch direto, sem
+SDK — mesmo padrão do resto do produto); `/api/clientes/[id]/ia/{fontes
+(+ [id]/analisar), gerar, rascunhos/[id]/aceitar}`. Rate limiting
+apertado (15 gerações/min por org) porque cada chamada tem custo real de
+API — nunca é chamada automaticamente por nenhum fluxo do produto, só
+quando o usuário clica em "Gerar".
 
-**Conclusão**: conteúdo de referência é analisado e pontuado; a IA gera
-rascunho de carrossel/reels que vira `content_item` no kanban.
+**Frontend**: `/clientes/[slug]/ia` — formulário de briefing (+ seleção
+de fontes de referência), lista de rascunhos gerados com botão "Aceitar",
+CRUD de fontes de referência com botão "Analisar com IA" (mostra resumo,
+ângulos sugeridos e nota).
+
+**Env vars**: `ANTHROPIC_API_KEY` — **custo por uso**, 🟣 dependência
+externa real (ver Pendências no relatório final). Sem a chave, a rota
+responde 501 com mensagem clara em vez de falhar silenciosamente.
+
+**Testes**: interpretação do JSON retornado pela IA (inclusive resposta
+malformada), propagação de erro HTTP, geração e persistência do rascunho,
+aceitar rascunho vira `content_item` real, rejeita aceitar duas vezes,
+análise de fonte de referência, bloqueio de permissão e do Portal.
+
+**Conclusão**: conteúdo de referência colado manualmente é analisado e
+pontuado pela IA; a IA gera rascunho de carrossel/post que só vira
+`content_item` real no kanban quando um humano revisa e aceita. Funciona
+de verdade assim que `ANTHROPIC_API_KEY` for configurada.
 
 ---
 

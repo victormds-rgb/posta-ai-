@@ -329,6 +329,47 @@ export interface OrgAgentToken {
   created_at: string
 }
 
+/** Análise gerada pela IA sobre um material de referência colado manualmente. */
+export interface ContentSourceAnalysis {
+  summary: string
+  angle_suggestions: string[]
+  score: number
+}
+
+/** Material de referência colado manualmente (nunca raspado automaticamente — ver sql/011). */
+export interface ContentSource {
+  id: string
+  org_id: string
+  client_id: string
+  title: string
+  source_url: string | null
+  raw_text: string
+  analysis: ContentSourceAnalysis | null
+  analyzed_at: string | null
+  added_by: string | null
+  created_at: string
+}
+
+/** Rascunho de conteúdo gerado pela IA — vira content_item real só quando aceito. */
+export interface AiGenerationResult {
+  title: string
+  caption: string
+  carousel_slides: { heading: string; body: string }[]
+  suggested_channels: string[]
+}
+
+export interface AiGeneration {
+  id: string
+  org_id: string
+  client_id: string
+  campaign_id: string | null
+  brief: string
+  result: AiGenerationResult
+  content_item_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface ApprovalLink {
   id: string
   content_id: string

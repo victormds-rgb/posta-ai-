@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { KanbanBoard } from '@/components/content/kanban-board'
-import { Share2, Palette, FolderOpen, Newspaper } from 'lucide-react'
+import { Share2, Palette, FolderOpen, Newspaper, Sparkles } from 'lucide-react'
 import type { Client } from '@/lib/types'
 
 export default async function ClientWorkflowPage({
@@ -68,6 +68,13 @@ export default async function ClientWorkflowPage({
           >
             <Newspaper className="size-4" />
             WordPress
+          </Link>
+          <Link
+            href={`/clientes/${client.slug}/ia`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-brand-soft"
+          >
+            <Sparkles className="size-4" />
+            IA
           </Link>
         </div>
       </div>

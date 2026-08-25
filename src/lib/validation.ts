@@ -193,6 +193,19 @@ export const agentContentUpdateSchema = z.object({
   media_urls: z.array(z.string().url()).max(20).optional(),
 })
 
+export const contentSourceCreateSchema = z.object({
+  title: z.string().trim().min(1, 'Título é obrigatório').max(255),
+  source_url: z.string().trim().url().max(2000).optional(),
+  raw_text: z.string().trim().min(1, 'Cole o texto de referência').max(20000),
+})
+
+export const aiGenerateSchema = z.object({
+  client_id: z.string().uuid('client_id inválido'),
+  campaign_id: z.string().uuid().optional().nullable(),
+  brief: z.string().trim().min(10, 'Descreva melhor o que você quer gerar').max(3000),
+  source_ids: z.array(z.string().uuid()).max(5).optional(),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),
