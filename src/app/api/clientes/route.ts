@@ -1,0 +1,73 @@
+import { NextResponse } from 'next/server'
+import { getCurrentContext } from '@/lib/org'
+import { createServerSupabase } from '@/lib/supabase/server'
+import { slugify } from '@/lib/utils'
+import { can } from '@/lib/permissions'
+import type { Client } from '@/lib/types'
+
+export async function GET() {
+  const ctx = await getCurrentContext()
+  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const supabase = await createServerSupabase()
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('org_id', ctx.organization.id)
+    .order('created_at', { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ clients: (data ?? []) as Client[] })
+}
+
+export async function POST(request: Request) {
+  const ctx = await getCurrentContext()
+  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!can(ctx.member.role, 'manageClients')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  const body = await request.json().catch(() => null)
+  const name: string | undefined = body?.name?.trim()
+  if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
+
+  const supabase = await createServerSupabase()
+
+  const baseSlug = slugify(name) || 'cliente'
+  let slug = baseSlug
+  for (let attempt = 1; attempt <= 20; attempt++) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('org_id', ctx.organization.id)
+      .eq('slug', slug)
+      .maybeSingle()
+    if (!existing) break
+    slug = `${baseSlug}-${attempt + 1}`
+  }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .insert({
+      org_id: ctx.organization.id,
+      name,
+      slug,
+      contact: body?.contact || null,
+      notes: body?.notes || null,
+    })
+    .select('*')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await supabase.from('activity_log').insert({
+    org_id: ctx.organization.id,
+    user_id: ctx.userId,
+    action: 'client.created',
+    entity_type: 'client',
+    entity_id: (data as Client).id,
+    details: { name },
+  })
+
+  return NextResponse.json({ client: data as Client }, { status: 201 })
+}

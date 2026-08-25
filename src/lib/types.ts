@@ -1,0 +1,179 @@
+// Tipos de domínio + shape mínimo do banco (mão, sem geração automática do
+// Supabase CLI — ajuste caso rode `supabase gen types` no seu projeto).
+
+export type UserRole = 'admin' | 'gestor' | 'designer' | 'cliente'
+export type MemberStatus = 'active' | 'pending' | 'inactive'
+export type ContentType = 'post' | 'carrossel' | 'reels' | 'story' | 'video'
+export type ContentStatus =
+  | 'ideia'
+  | 'producao'
+  | 'aprovacao_interna'
+  | 'aprovacao_cliente'
+  | 'agendado'
+  | 'publicado'
+export type ApprovalStatus = 'pendente' | 'aprovado' | 'ajuste'
+
+export const CONTENT_STATUSES: { value: ContentStatus; label: string }[] = [
+  { value: 'ideia', label: 'Ideia' },
+  { value: 'producao', label: 'Produção' },
+  { value: 'aprovacao_interna', label: 'Aprovação interna' },
+  { value: 'aprovacao_cliente', label: 'Aprovação do cliente' },
+  { value: 'agendado', label: 'Agendado' },
+  { value: 'publicado', label: 'Publicado' },
+]
+
+export const SOCIAL_PLATFORMS = [
+  'instagram',
+  'tiktok',
+  'facebook',
+  'youtube',
+  'linkedin',
+  'twitter',
+] as const
+export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number]
+
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  logo_url: string | null
+  plan: string
+  brand_color: string
+  upload_post_api_key: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Member {
+  id: string
+  user_id: string
+  org_id: string
+  role: UserRole
+  display_name: string
+  avatar_url: string | null
+  status: MemberStatus
+  created_at: string
+  email?: string
+}
+
+export interface Invite {
+  id: string
+  org_id: string
+  email: string
+  role: UserRole
+  token: string
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
+}
+
+export interface Client {
+  id: string
+  org_id: string
+  name: string
+  slug: string
+  brand_primary_color: string | null
+  brand_secondary_color: string | null
+  logo_url: string | null
+  contact: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface ClientSocialProfile {
+  id: string
+  org_id: string
+  client_id: string
+  upload_post_username: string
+  connected_platforms: { platform: SocialPlatform; username?: string; display_name?: string }[]
+  last_synced_at: string | null
+  created_at: string
+}
+
+export interface ContentItem {
+  id: string
+  org_id: string
+  client_id: string
+  title: string
+  content_type: ContentType
+  description: string | null
+  caption: string | null
+  media_urls: string[]
+  cover_url: string | null
+  channels: SocialPlatform[]
+  status: ContentStatus
+  scheduled_at: string | null
+  published_at: string | null
+  upload_post_job_id: string | null
+  created_by: string | null
+  assigned_to: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  client?: Client
+  assignee?: Member
+}
+
+export interface ApprovalLink {
+  id: string
+  content_id: string
+  org_id: string
+  token: string
+  status: ApprovalStatus
+  reviewer_name: string | null
+  comment: string | null
+  created_at: string
+  expires_at: string
+  responded_at: string | null
+  // joined
+  content?: ContentItem
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  org_id: string
+  type: string
+  title: string
+  body: string | null
+  read: boolean
+  reference_id: string | null
+  reference_type: string | null
+  created_at: string
+}
+
+export interface ActivityLog {
+  id: string
+  org_id: string
+  user_id: string | null
+  action: string
+  entity_type: string | null
+  entity_id: string | null
+  details: Record<string, unknown>
+  created_at: string
+}
+
+// --------------------------------------------------------------------------
+// Shape usado apenas para tipar o cliente Supabase (@supabase/ssr).
+// Não é gerado automaticamente — mantenha em sincronia com sql/001_init.sql.
+// --------------------------------------------------------------------------
+export type Database = {
+  public: {
+    Tables: {
+      organizations: { Row: Organization; Insert: Partial<Organization>; Update: Partial<Organization> }
+      members: { Row: Member; Insert: Partial<Member>; Update: Partial<Member> }
+      invites: { Row: Invite; Insert: Partial<Invite>; Update: Partial<Invite> }
+      clients: { Row: Client; Insert: Partial<Client>; Update: Partial<Client> }
+      client_social_profiles: {
+        Row: ClientSocialProfile
+        Insert: Partial<ClientSocialProfile>
+        Update: Partial<ClientSocialProfile>
+      }
+      content_items: { Row: ContentItem; Insert: Partial<ContentItem>; Update: Partial<ContentItem> }
+      approval_links: { Row: ApprovalLink; Insert: Partial<ApprovalLink>; Update: Partial<ApprovalLink> }
+      notifications: { Row: Notification; Insert: Partial<Notification>; Update: Partial<Notification> }
+      activity_log: { Row: ActivityLog; Insert: Partial<ActivityLog>; Update: Partial<ActivityLog> }
+    }
+  }
+}
