@@ -47,10 +47,10 @@ Cada capacidade tem um status:
 | 23 | Planejamento anual | ✅ | 5 | Via campanhas com período (início/fim) + calendário — sem grade visual anual dedicada. |
 | 24 | Campanhas | ✅ | 5 | Agrupam conteúdos de um cliente, com status e progresso (X/Y publicados). |
 | 25 | Tarefas | ✅ | 5 | Responsável, prazo, checklist e comentários. |
-| 26 | Analytics | ⚪ | 6 | Métricas de posts publicados. |
-| 27 | Meta Ads | ⚪ | 6 | 🟣 requer app revisado pela Meta. |
-| 28 | Blog/WordPress | ⚪ | 6 | 🟣 requer site WordPress por cliente. |
-| 29 | Google Drive | ⚪ | 6 | 🟣 requer projeto Google Cloud + consentimento OAuth revisado. |
+| 26 | Analytics | ✅ | 6 | Interno (produção/aprovação), calculado ao vivo — não inclui engajamento social (exigiria integração própria por rede). |
+| 27 | Meta Ads | ✅ | 6 | Código completo, BYO token (sem exigir app revisado pela Meta). 🟣 pendente: token real da organização. |
+| 28 | Blog/WordPress | ✅ | 6 | Funciona de verdade assim que o cliente gera a senha de aplicativo no site dele. |
+| 29 | Google Drive | ✅ | 6 | Código completo (OAuth + import pro Acervo). 🟣 pendente: `GOOGLE_DRIVE_CLIENT_ID`/`SECRET` (projeto Google Cloud). |
 | 30 | Webhooks (saída) | ⚪ | 7 | Tabelas `webhook_configs`/`webhook_events` **não existem ainda** no schema atual — migration nova na Fase 7. |
 | 31 | API de agente | ⚪ | 7 | Token bearer, endpoints programáticos (`/api/agent/*`). |
 | 32 | IA para geração/discovery | ⚪ | 8 | 🟣 requer `ANTHROPIC_API_KEY` (custo por uso). |
@@ -385,27 +385,75 @@ futuro, não como lacuna funcional.
 
 ---
 
-## Fase 6 — Analytics e integrações de mídia/conteúdo
+## Fase 6 — Analytics e integrações de mídia/conteúdo ✅ CONCLUÍDA
 
-**Funcionalidades**: #26 (analytics), #27 (Meta Ads 🟣), #28
-(WordPress 🟣), #29 (Google Drive 🟣).
+**Entregue**: dashboard de Analytics (`/analytics`) calculado ao vivo a
+partir dos dados já existentes (sem tabela de snapshot — decisão abaixo);
+WordPress por cliente (Application Password, mecanismo nativo do WP, sem
+app revisado por terceiro); Meta Ads via token BYO (sem precisar de app
+nosso revisado pela Meta); Google Drive via OAuth completo, importando
+arquivos direto pro Acervo digital da Fase 4.
 
-**Dependências**: Fase 0 (Upload-Post já publica — analytics lê métricas
-de cima disso). Cada integração externa é independente das outras — podem
-ser priorizadas conforme a necessidade real do usuário (nem toda agência
-usa WordPress ou Meta Ads).
+**Funcionalidades**: #26 (analytics) ✅, #27 (Meta Ads) ✅ — BYO token, ver
+nota, #28 (WordPress) ✅, #29 (Google Drive) ✅ — 🟣 ainda depende de
+credenciais reais (ver Pendências no relatório final).
 
-**Banco**: `analytics_snapshots` (métricas por conteúdo/dia),
-`org_wordpress_config`, `org_google_drive_config` (tokens OAuth cifrados).
+**Decisão de arquitetura registrada — Analytics sem `analytics_snapshots`**:
+o roadmap original previa uma tabela de snapshots por conteúdo/dia. Como
+nenhuma API de engajamento (curtidas/alcance) está disponível sem
+integração própria por rede social — a Upload-Post não expõe essas
+métricas —, os únicos dados reais disponíveis são os que o próprio
+produto já gera (status do conteúdo, tempo de aprovação). Calcular isso
+ao vivo via query é mais simples e igualmente real do que popular uma
+tabela de snapshot que teria a mesma fonte de dados; a tabela fica como
+possível otimização futura (cache), não como lacuna funcional. Métricas de
+engajamento social permanecem fora de escopo até uma integração dedicada
+por rede.
 
-**Env vars**: Meta Ads exige app revisado pela Meta (`META_APP_ID`/
-`META_APP_SECRET`); Google Drive exige projeto no Google Cloud Console
-(`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, escopo Drive); WordPress usa
-credenciais por cliente (Application Password), sem env var global.
+**Decisão de arquitetura registrada — Meta Ads sem app próprio revisado**:
+em vez de OAuth via um app registrado pelo produto (exigiria revisão da
+Meta), a organização gera seu próprio token de longa duração no Meta
+Business Suite e cola na configuração — mesmo padrão BYO já usado pra
+Z-API/Telegram/Upload-Post. Reduz a dependência externa de "app revisado"
+pra "token colado pela própria organização", que já funciona de verdade.
 
-**Conclusão**: gráfico de desempenho por conteúdo publicado; import de
-mídia direto do Drive do cliente; publicação espelhada no blog WordPress;
-leitura de campanhas ativas do Meta Ads.
+**Alterações de banco** (`sql/009_analytics_integrations.sql`):
+`client_wordpress_config` (por cliente, `app_password` cifrado),
+`org_google_drive_config` (por org, tokens OAuth cifrados),
+`org_meta_ads_config` (por org, `access_token` cifrado); `content_items`
+ganha `wordpress_post_url`. RLS: staff da org (não-cliente) tem acesso
+total; nenhuma dessas integrações é exposta ao Portal do cliente.
+
+**Backend**: `src/lib/{wordpress,meta-ads,google-drive}.ts` (clientes das
+APIs externas) + `org-{wordpress,meta-ads,google-drive}.ts` (resolução de
+credencial cifrada, com renovação automática de token do Drive via
+refresh_token); rotas `/api/clientes/[id]/wordpress`,
+`/api/conteudos/[id]/wordpress` (espelha um conteúdo publicado),
+`/api/integracoes/meta-ads` (+ `/insights`), `/api/google-drive/{connect,
+callback,status,arquivos,importar}`, `/api/analytics`.
+
+**Frontend**: `/analytics` (totais, por status, por cliente, tempo médio
+de aprovação), `/clientes/[slug]/wordpress` (conectar/desconectar, testa
+a conexão antes de salvar), botão "Espelhar no WordPress" no modal de
+conteúdo, seção "Integrações avançadas" em Configurações (Meta Ads +
+Google Drive), botão "Importar do Drive" no Acervo digital.
+
+**Env vars**: `GOOGLE_DRIVE_CLIENT_ID`/`GOOGLE_DRIVE_CLIENT_SECRET`
+(Google Drive, dependência externa — projeto no Google Cloud Console,
+funciona em modo de teste sem revisão formal até 100 usuários). Meta Ads e
+WordPress não têm env var global (BYO por organização/cliente).
+
+**Testes**: WordPress (bloqueio de permissão, teste de conexão falho não
+salva nada, credencial sempre cifrada no banco, desconexão), Meta Ads
+(mesmo padrão + bloqueio do Portal), Analytics (isolamento por
+organização, cálculo de tempo médio de aprovação).
+
+**Conclusão**: dashboard de analytics interno funcionando de verdade;
+espelhamento de conteúdo pro WordPress do cliente funciona ponta a ponta
+assim que o cliente gera a senha de aplicativo; Meta Ads e Google Drive
+têm todo o código funcional, pendendo apenas de credenciais reais
+(token/projeto Google Cloud) que só o usuário final pode gerar — ver
+Pendências no relatório final.
 
 ---
 

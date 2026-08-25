@@ -138,6 +138,22 @@ export const taskCommentSchema = z.object({
   body: z.string().trim().min(1, 'Comentário vazio').max(5000),
 })
 
+export const wordpressConnectSchema = z.object({
+  site_url: z.string().trim().url().max(500),
+  username: z.string().trim().min(1).max(255),
+  app_password: z.string().trim().min(1).max(255),
+})
+
+export const metaAdsConnectSchema = z.object({
+  access_token: z.string().trim().min(1).max(1000),
+  ad_account_id: z.string().trim().min(1).max(100),
+})
+
+export const googleDriveImportSchema = z.object({
+  file_id: z.string().trim().min(1).max(200),
+  folder_id: z.string().uuid(),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),

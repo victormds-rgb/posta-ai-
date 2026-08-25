@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Plus, Trash2, Share2, Copy, Check, Loader2, Upload, Folder } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Share2, Copy, Check, Loader2, Upload, Folder, HardDrive } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input, Label } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { usePermissions } from '@/hooks/use-permissions'
+import { GoogleDriveImportModal } from '@/components/acervo/google-drive-import-modal'
 import type { Client, MediaFile, MediaFolder } from '@/lib/types'
 
 export default function AcervoPage() {
@@ -170,6 +171,7 @@ function FolderRow({
 }) {
   const [copied, setCopied] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [driveModalOpen, setDriveModalOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -232,14 +234,24 @@ function FolderRow({
       {open && (
         <div className="border-t border-border p-4">
           {canManage && (
-            <div className="mb-3">
+            <div className="mb-3 flex gap-2">
               <input ref={inputRef} type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
               <Button size="sm" variant="secondary" onClick={() => inputRef.current?.click()} loading={uploading}>
                 <Upload className="size-4" />
                 Enviar arquivos
               </Button>
+              <Button size="sm" variant="secondary" onClick={() => setDriveModalOpen(true)}>
+                <HardDrive className="size-4" />
+                Importar do Drive
+              </Button>
             </div>
           )}
+          <GoogleDriveImportModal
+            open={driveModalOpen}
+            onClose={() => setDriveModalOpen(false)}
+            folderId={folder.id}
+            onImported={onUploaded}
+          />
           {!files && <p className="text-sm text-muted">Carregando…</p>}
           {files?.length === 0 && <p className="text-sm text-muted">Pasta vazia.</p>}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

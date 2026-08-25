@@ -247,6 +247,7 @@ export interface ContentItem {
   scheduled_at: string | null
   published_at: string | null
   upload_post_job_id: string | null
+  wordpress_post_url: string | null
   created_by: string | null
   assigned_to: string | null
   created_at: string
@@ -254,6 +255,34 @@ export interface ContentItem {
   // joined
   client?: Client
   assignee?: Member
+}
+
+/** Credenciais do WordPress do cliente (Application Password — mecanismo oficial do WP). */
+export interface ClientWordPressConfig {
+  id: string
+  org_id: string
+  client_id: string
+  site_url: string
+  username: string
+  connected_at: string
+  created_at: string
+}
+
+/** Conexão OAuth do Google Drive da organização (🟣 dependência externa). */
+export interface OrgGoogleDriveConfig {
+  id: string
+  org_id: string
+  expires_at: string | null
+  account_email: string | null
+  connected_at: string
+}
+
+/** Conexão do Meta Ads da organização (🟣 dependência externa). */
+export interface OrgMetaAdsConfig {
+  id: string
+  org_id: string
+  ad_account_id: string
+  connected_at: string
 }
 
 export interface ApprovalLink {

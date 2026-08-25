@@ -4,6 +4,7 @@ import { CreditCard } from 'lucide-react'
 import { getCurrentContext } from '@/lib/org'
 import { SettingsForm } from '@/components/settings/settings-form'
 import { CommunicationSettings } from '@/components/settings/communication-settings'
+import { AdvancedIntegrations } from '@/components/settings/advanced-integrations'
 import { Card } from '@/components/ui/card'
 
 export default async function ConfiguracoesPage() {
@@ -36,6 +37,9 @@ export default async function ConfiguracoesPage() {
 
       <h2 className="mt-8 mb-2 text-lg font-semibold">Comunicação</h2>
       <CommunicationSettings canEdit={ctx.permissions.manageIntegrations} />
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold">Integrações avançadas</h2>
+      <AdvancedIntegrations canEdit={ctx.permissions.manageIntegrations} />
     </div>
   )
 }

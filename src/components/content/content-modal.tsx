@@ -9,7 +9,7 @@ import { CONTENT_STATUSES, SOCIAL_PLATFORMS, type ContentItem, type ContentStatu
 import { cn } from '@/lib/utils'
 import { usePermissions } from '@/hooks/use-permissions'
 import { InternalApprovalPanel } from '@/components/content/internal-approval-panel'
-import { Trash2, Link2, Check, Send } from 'lucide-react'
+import { Trash2, Link2, Check, Send, Newspaper } from 'lucide-react'
 
 const CONTENT_TYPES: { value: ContentType; label: string }[] = [
   { value: 'post', label: 'Post' },
@@ -52,6 +52,9 @@ export function ContentModal({
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
   const [published, setPublished] = useState(false)
+  const [wordpressUrl, setWordpressUrl] = useState<string | null>(null)
+  const [mirroring, setMirroring] = useState(false)
+  const [mirrorError, setMirrorError] = useState<string | null>(null)
   const { permissions } = usePermissions()
   const canManageContent = permissions?.manageContent ?? false
   const canPublish = permissions?.publish ?? false
@@ -73,6 +76,8 @@ export function ContentModal({
     setCopied(false)
     setPublishError(null)
     setPublished(false)
+    setWordpressUrl(item?.wordpress_post_url ?? null)
+    setMirrorError(null)
   }, [open, item, defaultStatus])
 
   function toggleChannel(platform: string) {
@@ -157,6 +162,20 @@ export function ContentModal({
     setPublished(true)
     setStatus('publicado')
     onSaved()
+  }
+
+  async function handleMirrorWordpress() {
+    if (!item) return
+    setMirroring(true)
+    setMirrorError(null)
+    const res = await fetch(`/api/conteudos/${item.id}/wordpress`, { method: 'POST' })
+    setMirroring(false)
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setMirrorError(data.error || 'Falha ao publicar no WordPress.')
+      return
+    }
+    setWordpressUrl(data.url)
   }
 
   async function handleDelete() {
@@ -311,6 +330,24 @@ export function ContentModal({
               </Button>
             </div>
             {publishError && <p className="mt-2 text-xs text-danger">{publishError}</p>}
+          </div>
+        )}
+
+        {item && canPublish && (
+          <div className="rounded-lg border border-border bg-black/[0.02] p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">WordPress do cliente</p>
+              <Button type="button" size="sm" variant="secondary" loading={mirroring} onClick={handleMirrorWordpress}>
+                <Newspaper className="size-3.5" />
+                {wordpressUrl ? 'Publicar de novo' : 'Espelhar no WordPress'}
+              </Button>
+            </div>
+            {wordpressUrl && (
+              <a href={wordpressUrl} target="_blank" rel="noopener noreferrer" className="mt-2 block truncate text-xs text-brand underline">
+                {wordpressUrl}
+              </a>
+            )}
+            {mirrorError && <p className="mt-2 text-xs text-danger">{mirrorError}</p>}
           </div>
         )}
 
