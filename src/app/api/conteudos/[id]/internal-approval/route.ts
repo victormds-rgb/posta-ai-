@@ -5,6 +5,10 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
 import { getInternalApproverUserIds } from '@/lib/approvals'
 import { notifyMany } from '@/lib/notifications'
+import { getAppUrl } from '@/lib/get-app-url'
+import { internalApprovalRequestedEmail } from '@/lib/email/templates'
+import { getOrgTelegramConfig } from '@/lib/org-telegram'
+import { telegramSendMessage } from '@/lib/telegram'
 import type { ContentItem, InternalApproval } from '@/lib/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -109,6 +113,7 @@ export async function POST(_request: Request, { params }: Params) {
   })
 
   const approverIds = await getInternalApproverUserIds(supabase, ctx.organization.id, ctx.userId)
+  const dashboardLink = `${getAppUrl()}/clientes`
   await notifyMany(supabase, approverIds, {
     orgId: ctx.organization.id,
     type: 'internal_approval_requested',
@@ -116,7 +121,26 @@ export async function POST(_request: Request, { params }: Params) {
     body: content.title,
     referenceId: id,
     referenceType: 'content_item',
+    email: internalApprovalRequestedEmail({ contentTitle: content.title, link: dashboardLink }),
   })
+
+  // Best-effort: avisa também no Telegram, com botões de aprovar/ajustar direto na mensagem.
+  const telegramConfig = await getOrgTelegramConfig(ctx.organization.id)
+  if (telegramConfig?.approval_chat_id) {
+    telegramSendMessage(
+      telegramConfig.bot_token,
+      telegramConfig.approval_chat_id,
+      `📝 <b>${content.title}</b>\n\nAguardando aprovação interna.`,
+      [
+        [
+          { text: '✅ Aprovar', callback_data: `ia:${id}:aprovado` },
+          { text: '↩️ Pedir ajuste', callback_data: `ia:${id}:ajuste` },
+        ],
+      ],
+    ).then((result) => {
+      if (!result.success) console.error('[telegram.send]', result.error)
+    })
+  }
 
   return NextResponse.json({ approval }, { status: 201 })
 }

@@ -1,7 +1,10 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { can } from '@/lib/permissions'
-import type { Member } from '@/lib/types'
+import { notify } from '@/lib/notifications'
+import { getAppUrl } from '@/lib/get-app-url'
+import { internalApprovalDecidedEmail } from '@/lib/email/templates'
+import type { ApprovalStatus, ContentItem, InternalApproval, Member } from '@/lib/types'
 
 /** IDs (user_id) de todos os membros ativos da org com permissão de aprovar internamente. */
 export async function getInternalApproverUserIds(
@@ -65,4 +68,83 @@ export async function assertContentIsPublishable(
   }
 
   return { ok: true }
+}
+
+type DecisionResult =
+  | { ok: true; approval: InternalApproval; content: ContentItem }
+  | { ok: false; error: string; status: number }
+
+/**
+ * Aplica uma decisão (aprovar/pedir ajuste) na aprovação interna pendente de
+ * um conteúdo. Compartilhada entre a rota HTTP
+ * (`/api/conteudos/[id]/internal-approval/decision`) e o webhook do Telegram
+ * (clique em botão inline) — mesma regra de negócio, duas origens.
+ */
+export async function applyInternalApprovalDecision(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any>,
+  params: { contentId: string; orgId: string; decision: ApprovalStatus; comment?: string; reviewedBy: string | null },
+): Promise<DecisionResult> {
+  const { contentId, orgId, decision, comment, reviewedBy } = params
+
+  const { data: content } = await supabase
+    .from('content_items')
+    .select('*')
+    .eq('id', contentId)
+    .eq('org_id', orgId)
+    .maybeSingle<ContentItem>()
+  if (!content) return { ok: false, error: 'Conteúdo não encontrado', status: 404 }
+
+  const { data: pending } = await supabase
+    .from('internal_approvals')
+    .select('*')
+    .eq('content_id', contentId)
+    .eq('status', 'pendente')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<InternalApproval>()
+  if (!pending) return { ok: false, error: 'Não há aprovação interna pendente para este conteúdo.', status: 404 }
+
+  const { data: approval, error } = await supabase
+    .from('internal_approvals')
+    .update({ status: decision, reviewed_by: reviewedBy, comment: comment || null, reviewed_at: new Date().toISOString() })
+    .eq('id', pending.id)
+    .select('*')
+    .single()
+  if (error) return { ok: false, error: error.message, status: 500 }
+
+  await supabase
+    .from('content_items')
+    .update({ status: decision === 'aprovado' ? 'aprovacao_cliente' : 'producao' })
+    .eq('id', contentId)
+    .eq('org_id', orgId)
+
+  await supabase.from('activity_log').insert({
+    org_id: orgId,
+    user_id: reviewedBy,
+    action: decision === 'aprovado' ? 'content.internal_approved' : 'content.internal_changes_requested',
+    entity_type: 'content_item',
+    entity_id: contentId,
+    details: { comment: comment || null },
+  })
+
+  if (pending.requested_by) {
+    await notify(supabase, {
+      orgId,
+      userId: pending.requested_by,
+      type: decision === 'aprovado' ? 'internal_approval_approved' : 'internal_approval_changes_requested',
+      title: decision === 'aprovado' ? 'Conteúdo aprovado internamente' : 'Ajuste solicitado no seu conteúdo',
+      body: comment || content.title,
+      referenceId: contentId,
+      referenceType: 'content_item',
+      email: internalApprovalDecidedEmail({
+        contentTitle: content.title,
+        approved: decision === 'aprovado',
+        comment: comment || undefined,
+        link: `${getAppUrl()}/clientes`,
+      }),
+    })
+  }
+
+  return { ok: true, approval: approval as InternalApproval, content }
 }

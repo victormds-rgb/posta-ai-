@@ -4,6 +4,8 @@ import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can, isOrgAdmin, ROLE_PERMISSIONS } from '@/lib/permissions'
 import { notify } from '@/lib/notifications'
+import { getAppUrl } from '@/lib/get-app-url'
+import { permissionsChangedEmail } from '@/lib/email/templates'
 import type { RolePermissions, UserRole } from '@/lib/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -89,6 +91,7 @@ export async function PATCH(request: Request, { params }: Params) {
       body: body.role ? `Novo papel: ${body.role}` : undefined,
       referenceId: id,
       referenceType: 'member',
+      email: permissionsChangedEmail({ newRole: body.role, link: `${getAppUrl()}/clientes` }),
     })
   }
 

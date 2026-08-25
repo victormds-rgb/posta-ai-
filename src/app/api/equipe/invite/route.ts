@@ -7,6 +7,8 @@ import { getAppUrl } from '@/lib/get-app-url'
 import { can } from '@/lib/permissions'
 import { parseBody, inviteCreateSchema } from '@/lib/validation'
 import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
+import { sendEmail } from '@/lib/email/send'
+import { inviteEmail } from '@/lib/email/templates'
 
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
@@ -30,8 +32,13 @@ export async function POST(request: Request) {
 
   if (error) return serverError(error, 'equipe.invite')
 
-  return NextResponse.json({
-    invite,
-    link: `${getAppUrl()}/auth/invite?token=${invite.token}`,
+  const link = `${getAppUrl()}/auth/invite?token=${invite.token}`
+
+  // Best-effort e assíncrono — se falhar, o link já foi gerado e pode ser copiado manualmente.
+  const email = inviteEmail({ orgName: ctx.organization.name, role: body.role, link })
+  sendEmail({ to: body.email, subject: email.subject, html: email.html }).then((result) => {
+    if (!result.success) console.error('[equipe.invite.email]', result.error)
   })
+
+  return NextResponse.json({ invite, link })
 }

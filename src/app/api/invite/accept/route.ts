@@ -3,6 +3,8 @@ import { createServerSupabase, createAdminSupabase } from '@/lib/supabase/server
 import { notifyMany } from '@/lib/notifications'
 import { rateLimit, rateLimitedResponse, getClientIp } from '@/lib/rate-limit'
 import { parseBody, inviteAcceptSchema } from '@/lib/validation'
+import { getAppUrl } from '@/lib/get-app-url'
+import { teamMemberJoinedEmail } from '@/lib/email/templates'
 import type { Member } from '@/lib/types'
 
 /** Vincula o usuário logado à organização do convite. Requer sessão ativa. */
@@ -51,11 +53,13 @@ export async function POST(request: Request) {
     .eq('role', 'admin')
     .eq('status', 'active')
   const adminIds = ((admins ?? []) as Member[]).map((m) => m.user_id).filter((id) => id !== user.id)
+  const memberName = user.user_metadata?.full_name || user.email || 'Alguém'
   await notifyMany(admin, adminIds, {
     orgId: invite.org_id,
     type: 'team_member_joined',
     title: 'Novo membro na equipe',
-    body: user.user_metadata?.full_name || user.email || undefined,
+    body: memberName,
+    email: teamMemberJoinedEmail({ memberName, link: `${getAppUrl()}/equipe` }),
   })
 
   return NextResponse.json({ success: true })

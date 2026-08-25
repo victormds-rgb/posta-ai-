@@ -47,6 +47,23 @@ export const clientCreateSchema = z.object({
   notes: z.string().trim().max(5000).optional(),
 })
 
+export const whatsappConnectSchema = z.object({
+  instance_id: z.string().trim().min(1).max(100),
+  token: z.string().trim().min(1).max(200),
+})
+
+export const whatsappSendSchema = z.object({
+  phone: z.string().trim().min(8).max(20),
+  message: z.string().trim().min(1).max(4000),
+  reference_id: z.string().uuid().optional(),
+  reference_type: z.string().max(50).optional(),
+})
+
+export const telegramConnectSchema = z.object({
+  bot_token: z.string().trim().min(1).max(200),
+  approval_chat_id: z.string().trim().max(100).optional(),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),

@@ -1,5 +1,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { createAdminSupabase } from '@/lib/supabase/server'
+import { sendEmail } from '@/lib/email/send'
 
 export type NotificationType =
   | 'internal_approval_requested'
@@ -10,6 +12,11 @@ export type NotificationType =
   | 'team_member_joined'
   | 'permissions_changed'
 
+interface EmailPayload {
+  subject: string
+  html: string
+}
+
 interface NotifyParams {
   orgId: string
   userId: string
@@ -18,6 +25,31 @@ interface NotifyParams {
   body?: string
   referenceId?: string
   referenceType?: string
+  /** Se informado (e RESEND_API_KEY configurada), também tenta mandar por e-mail — best-effort. */
+  email?: EmailPayload
+}
+
+/** Manda e-mail pro destinatário se ele tiver optado por notificações por e-mail. Nunca lança. */
+async function tryEmail(userId: string, email: EmailPayload) {
+  if (!process.env.RESEND_API_KEY) return
+  try {
+    const admin = createAdminSupabase()
+    const { data: member } = await admin
+      .from('members')
+      .select('email_notifications')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (member && member.email_notifications === false) return
+
+    const { data: userData } = await admin.auth.admin.getUserById(userId)
+    const to = userData?.user?.email
+    if (!to) return
+
+    await sendEmail({ to, subject: email.subject, html: email.html })
+  } catch (err) {
+    // Notificação por e-mail é um extra — nunca deve derrubar o fluxo principal.
+    console.error('[notifications.email]', err)
+  }
 }
 
 /**
@@ -28,7 +60,7 @@ interface NotifyParams {
 export async function notify(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente sem generic de Database, ver lib/supabase/server.ts
   supabase: SupabaseClient<any>,
-  { orgId, userId, type, title, body, referenceId, referenceType }: NotifyParams,
+  { orgId, userId, type, title, body, referenceId, referenceType, email }: NotifyParams,
 ) {
   await supabase.from('notifications').insert({
     org_id: orgId,
@@ -39,6 +71,7 @@ export async function notify(
     reference_id: referenceId || null,
     reference_type: referenceType || null,
   })
+  if (email) await tryEmail(userId, email)
 }
 
 /** Notifica vários usuários de uma vez (ex.: todo mundo que pode aprovar). */
@@ -59,4 +92,5 @@ export async function notifyMany(
     reference_type: params.referenceType || null,
   }))
   await supabase.from('notifications').insert(rows)
+  if (params.email) await Promise.all(userIds.map((userId) => tryEmail(userId, params.email!)))
 }

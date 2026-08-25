@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getCurrentContext } from '@/lib/org'
 import { SettingsForm } from '@/components/settings/settings-form'
+import { CommunicationSettings } from '@/components/settings/communication-settings'
 
 export default async function ConfiguracoesPage() {
   const ctx = await getCurrentContext()
@@ -17,6 +18,9 @@ export default async function ConfiguracoesPage() {
         hasUploadPostKey={!!ctx.organization.upload_post_api_key}
         canEdit={ctx.permissions.manageSettings}
       />
+
+      <h2 className="mt-8 mb-2 text-lg font-semibold">Comunicação</h2>
+      <CommunicationSettings canEdit={ctx.permissions.manageIntegrations} />
     </div>
   )
 }

@@ -4,6 +4,8 @@ import { notify } from '@/lib/notifications'
 import { rateLimit, rateLimitedResponse, getClientIp } from '@/lib/rate-limit'
 import { parseBody, approvalDecisionSchema } from '@/lib/validation'
 import { serverError } from '@/lib/errors'
+import { getAppUrl } from '@/lib/get-app-url'
+import { externalApprovalDecidedEmail } from '@/lib/email/templates'
 import type { ApprovalLink, Client, ContentItem } from '@/lib/types'
 
 type Params = { params: Promise<{ token: string }> }
@@ -96,6 +98,14 @@ export async function POST(request: Request, { params }: Params) {
       body: body.comment || content?.title || undefined,
       referenceId: link.content_id,
       referenceType: 'content_item',
+      email: content
+        ? externalApprovalDecidedEmail({
+            contentTitle: content.title,
+            approved: action === 'aprovado',
+            comment: body.comment || undefined,
+            link: `${getAppUrl()}/clientes`,
+          })
+        : undefined,
     })
   }
 
