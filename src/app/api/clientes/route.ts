@@ -5,6 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { slugify } from '@/lib/utils'
 import { can } from '@/lib/permissions'
 import { parseBody, clientCreateSchema } from '@/lib/validation'
+import { assertWithinClientLimit } from '@/lib/plan-limits'
 import type { Client } from '@/lib/types'
 
 export async function GET() {
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
   const { name } = body
 
   const supabase = await createServerSupabase()
+
+  const limitCheck = await assertWithinClientLimit(supabase, ctx.organization.id, ctx.organization.plan)
+  if (!limitCheck.ok) return NextResponse.json({ error: limitCheck.reason }, { status: 402 })
 
   const baseSlug = slugify(name) || 'cliente'
   let slug = baseSlug

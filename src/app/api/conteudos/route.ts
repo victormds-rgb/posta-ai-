@@ -4,6 +4,7 @@ import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
 import { parseBody, contentCreateSchema } from '@/lib/validation'
+import { assertWithinContentLimit } from '@/lib/plan-limits'
 import type { ContentItem } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
   if (validationError) return validationError
 
   const supabase = await createServerSupabase()
+
+  const limitCheck = await assertWithinContentLimit(supabase, ctx.organization.id, ctx.organization.plan)
+  if (!limitCheck.ok) return NextResponse.json({ error: limitCheck.reason }, { status: 402 })
+
   const { data, error } = await supabase
     .from('content_items')
     .insert({

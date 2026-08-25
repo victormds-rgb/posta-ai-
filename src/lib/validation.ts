@@ -64,6 +64,11 @@ export const telegramConnectSchema = z.object({
   approval_chat_id: z.string().trim().max(100).optional(),
 })
 
+export const checkoutSchema = z.object({
+  plan: z.enum(['starter', 'pro', 'agency']),
+  interval: z.enum(['month', 'year']),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),

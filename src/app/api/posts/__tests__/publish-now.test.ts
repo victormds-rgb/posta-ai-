@@ -46,6 +46,12 @@ function makeContext(role: Member['role']) {
     plan: 'free',
     brand_color: '#000',
     upload_post_api_key: 'fake-key',
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    subscription_status: null,
+    current_period_end: null,
+    cancel_at_period_end: false,
+    trial_end: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
