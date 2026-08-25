@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { can } from '@/lib/permissions'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
 const MAX_SIZE = 50 * 1024 * 1024 // 50MB
 const ALLOWED_TYPES = new Set([
@@ -17,6 +20,12 @@ const ALLOWED_TYPES = new Set([
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!can(ctx.member, 'manageMedia')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  const limit = rateLimit(`media:upload:${ctx.userId}`, 30, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
 
   const formData = await request.formData().catch(() => null)
   const file = formData?.get('file')
@@ -38,7 +47,7 @@ export async function POST(request: Request) {
     contentType: file.type,
     upsert: false,
   })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'media.upload')
 
   const { data: publicUrl } = supabase.storage.from('media').getPublicUrl(path)
   return NextResponse.json({ url: publicUrl.publicUrl, path })

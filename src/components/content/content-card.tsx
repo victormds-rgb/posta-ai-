@@ -9,15 +9,17 @@ export function ContentCard({
   item,
   onClick,
   onDragStart,
+  draggable = true,
 }: {
   item: ContentItem
   onClick: () => void
   onDragStart: (e: React.DragEvent) => void
+  draggable?: boolean
 }) {
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
+      draggable={draggable}
+      onDragStart={draggable ? onDragStart : undefined}
       onClick={onClick}
       className="cursor-pointer rounded-lg border border-border bg-surface p-3 shadow-sm transition-shadow hover:shadow-md"
     >

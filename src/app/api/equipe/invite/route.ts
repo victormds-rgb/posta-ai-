@@ -1,33 +1,34 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { generateToken } from '@/lib/tokens'
 import { getAppUrl } from '@/lib/get-app-url'
 import { can } from '@/lib/permissions'
-import type { UserRole } from '@/lib/types'
-
-const VALID_ROLES: UserRole[] = ['admin', 'gestor', 'designer', 'cliente']
+import { parseBody, inviteCreateSchema } from '@/lib/validation'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageTeam')) {
+  if (!can(ctx.member, 'manageTeam')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const body = await request.json().catch(() => ({}))
-  const email: string | undefined = body?.email?.trim().toLowerCase()
-  const role: UserRole = VALID_ROLES.includes(body?.role) ? body.role : 'designer'
-  if (!email) return NextResponse.json({ error: 'E-mail é obrigatório' }, { status: 400 })
+  const limit = rateLimit(`equipe:invite:${ctx.organization.id}`, 20, 60 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
+
+  const { data: body, error: validationError } = await parseBody(request, inviteCreateSchema)
+  if (validationError) return validationError
 
   const supabase = await createServerSupabase()
   const { data: invite, error } = await supabase
     .from('invites')
-    .insert({ org_id: ctx.organization.id, email, role, token: generateToken(), invited_by: ctx.userId })
+    .insert({ org_id: ctx.organization.id, email: body.email, role: body.role, token: generateToken(), invited_by: ctx.userId })
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'equipe.invite')
 
   return NextResponse.json({
     invite,

@@ -11,7 +11,7 @@ import type { Client, ClientSocialProfile } from '@/lib/types'
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageSocial')) {
+  if (!can(ctx.member, 'manageIntegrations')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 

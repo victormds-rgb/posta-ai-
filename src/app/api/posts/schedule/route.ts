@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
+import { assertContentIsPublishable } from '@/lib/approvals'
 
 /**
  * Agendamento "local": grava scheduled_at + status='agendado'. Um cron
@@ -11,7 +13,7 @@ import { can } from '@/lib/permissions'
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'publish')) {
+  if (!can(ctx.member, 'publish')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -26,6 +28,12 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createServerSupabase()
+
+  const approvalCheck = await assertContentIsPublishable(supabase, contentId)
+  if (!approvalCheck.ok) {
+    return NextResponse.json({ error: approvalCheck.reason }, { status: 409 })
+  }
+
   const { data, error } = await supabase
     .from('content_items')
     .update({ scheduled_at: scheduledAt, status: 'agendado' })
@@ -34,6 +42,6 @@ export async function POST(request: Request) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'posts.schedule')
   return NextResponse.json({ item: data })
 }

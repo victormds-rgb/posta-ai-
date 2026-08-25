@@ -44,6 +44,32 @@ export interface Organization {
   updated_at: string
 }
 
+/**
+ * Capacidades controláveis por permissão, cobrindo as áreas mínimas do
+ * produto (dashboard, clientes, conteúdo, mídia, aprovação, publicação,
+ * equipe, configurações, integrações). `manageBilling` e `viewReports`
+ * são reservadas para as Fases 3 e 6 — o flag já existe no modelo de
+ * dados para essas fases não exigirem nova migration, mas hoje nenhuma
+ * rota as consome ainda. "Administração" da organização corresponde a
+ * `role === 'admin'` (ver `isOrgAdmin` em src/lib/permissions.ts) e não é
+ * um flag independente — só um admin de organização deve poder alterar
+ * `role`/`custom_permissions` de outros membros (evita escalonamento de
+ * privilégio via permissão concedida).
+ */
+export interface RolePermissions {
+  viewDashboard: boolean
+  manageClients: boolean
+  manageContent: boolean
+  manageMedia: boolean
+  approveInternal: boolean
+  publish: boolean
+  manageTeam: boolean
+  manageSettings: boolean
+  manageIntegrations: boolean
+  manageBilling: boolean
+  viewReports: boolean
+}
+
 export interface Member {
   id: string
   user_id: string
@@ -53,6 +79,8 @@ export interface Member {
   avatar_url: string | null
   status: MemberStatus
   created_at: string
+  /** Override parcial de RolePermissions. Null = usa o padrão do role. */
+  custom_permissions: Partial<RolePermissions> | null
   email?: string
 }
 
@@ -130,6 +158,21 @@ export interface ApprovalLink {
   content?: ContentItem
 }
 
+export interface InternalApproval {
+  id: string
+  org_id: string
+  content_id: string
+  status: ApprovalStatus
+  requested_by: string | null
+  reviewed_by: string | null
+  comment: string | null
+  created_at: string
+  reviewed_at: string | null
+  // joined
+  requester?: Pick<Member, 'id' | 'display_name' | 'email'>
+  reviewer?: Pick<Member, 'id' | 'display_name' | 'email'>
+}
+
 export interface Notification {
   id: string
   user_id: string
@@ -172,6 +215,11 @@ export type Database = {
       }
       content_items: { Row: ContentItem; Insert: Partial<ContentItem>; Update: Partial<ContentItem> }
       approval_links: { Row: ApprovalLink; Insert: Partial<ApprovalLink>; Update: Partial<ApprovalLink> }
+      internal_approvals: {
+        Row: InternalApproval
+        Insert: Partial<InternalApproval>
+        Update: Partial<InternalApproval>
+      }
       notifications: { Row: Notification; Insert: Partial<Notification>; Update: Partial<Notification> }
       activity_log: { Row: ActivityLog; Insert: Partial<ActivityLog>; Update: Partial<ActivityLog> }
     }

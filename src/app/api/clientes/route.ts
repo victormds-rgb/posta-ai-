@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { slugify } from '@/lib/utils'
 import { can } from '@/lib/permissions'
+import { parseBody, clientCreateSchema } from '@/lib/validation'
 import type { Client } from '@/lib/types'
 
 export async function GET() {
@@ -16,20 +18,20 @@ export async function GET() {
     .eq('org_id', ctx.organization.id)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'clientes')
   return NextResponse.json({ clients: (data ?? []) as Client[] })
 }
 
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageClients')) {
+  if (!can(ctx.member, 'manageClients')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
-  const body = await request.json().catch(() => null)
-  const name: string | undefined = body?.name?.trim()
-  if (!name) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
+  const { data: body, error: validationError } = await parseBody(request, clientCreateSchema)
+  if (validationError) return validationError
+  const { name } = body
 
   const supabase = await createServerSupabase()
 
@@ -52,13 +54,13 @@ export async function POST(request: Request) {
       org_id: ctx.organization.id,
       name,
       slug,
-      contact: body?.contact || null,
-      notes: body?.notes || null,
+      contact: body.contact || null,
+      notes: body.notes || null,
     })
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'clientes')
 
   await supabase.from('activity_log').insert({
     org_id: ctx.organization.id,

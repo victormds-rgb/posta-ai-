@@ -4,12 +4,13 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { publishPost } from '@/lib/upload-post'
 import { getOrgUploadPostKey } from '@/lib/org-upload-post'
 import { can } from '@/lib/permissions'
+import { assertContentIsPublishable } from '@/lib/approvals'
 import type { ClientSocialProfile, ContentItem } from '@/lib/types'
 
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'publish')) {
+  if (!can(ctx.member, 'publish')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -35,6 +36,11 @@ export async function POST(request: Request) {
   }
   if (content.channels.length === 0) {
     return NextResponse.json({ error: 'Selecione ao menos um canal.' }, { status: 400 })
+  }
+
+  const approvalCheck = await assertContentIsPublishable(supabase, contentId)
+  if (!approvalCheck.ok) {
+    return NextResponse.json({ error: approvalCheck.reason }, { status: 409 })
   }
 
   const { data: profile } = await supabase

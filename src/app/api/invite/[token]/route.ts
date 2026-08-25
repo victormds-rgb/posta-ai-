@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createAdminSupabase } from '@/lib/supabase/server'
+import { rateLimit, rateLimitedResponse, getClientIp } from '@/lib/rate-limit'
 
 type Params = { params: Promise<{ token: string }> }
 
 /** Consulta pública (sem login) de um convite, usada por /auth/invite. */
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
+  const limit = rateLimit(`invite:get:${getClientIp(request)}`, 60, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
+
   const { token } = await params
   const supabase = createAdminSupabase()
 

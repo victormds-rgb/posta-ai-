@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
+import { can } from '@/lib/permissions'
+import { parseBody, contentCreateSchema } from '@/lib/validation'
 import type { ContentItem } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -20,18 +23,19 @@ export async function GET(request: Request) {
   if (clientId) query = query.eq('client_id', clientId)
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'conteudos')
   return NextResponse.json({ items: (data ?? []) as ContentItem[] })
 }
 
 export async function POST(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-
-  const body = await request.json().catch(() => null)
-  if (!body?.client_id) {
-    return NextResponse.json({ error: 'client_id é obrigatório' }, { status: 400 })
+  if (!can(ctx.member, 'manageContent')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
+
+  const { data: body, error: validationError } = await parseBody(request, contentCreateSchema)
+  if (validationError) return validationError
 
   const supabase = await createServerSupabase()
   const { data, error } = await supabase
@@ -40,12 +44,12 @@ export async function POST(request: Request) {
       org_id: ctx.organization.id,
       client_id: body.client_id,
       title: body.title?.trim() || 'Sem título',
-      content_type: body.content_type || 'post',
+      content_type: body.content_type,
       description: body.description || null,
       caption: body.caption || null,
-      media_urls: body.media_urls || [],
+      media_urls: body.media_urls,
       cover_url: body.cover_url || null,
-      channels: body.channels || [],
+      channels: body.channels,
       status: body.status || 'ideia',
       scheduled_at: body.scheduled_at || null,
       created_by: ctx.userId,
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'conteudos')
 
   await supabase.from('activity_log').insert({
     org_id: ctx.organization.id,

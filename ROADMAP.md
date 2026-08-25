@@ -25,19 +25,19 @@ Cada capacidade tem um status:
 | 1 | Autenticação | ✅ | 0 | E-mail/senha + Google OAuth via Supabase. Falta: reenvio de confirmação, MFA (fora de escopo por ora). |
 | 2 | Multi-tenant | ✅ | 0 | `org_id` + RLS em todas as tabelas de negócio. |
 | 3 | Organizações | ✅ | 0 | Criação automática no signup. |
-| 4 | Usuários e equipe | 🟡 | 0 / 2 | Convite gera link manual — falta envio automático por e-mail (Fase 2). |
-| 5 | Papéis e permissões | 🟡 | 0 / 1 | Fixo por role (`src/lib/permissions.ts`). Matriz granular por membro é a Fase 1. |
+| 4 | Usuários e equipe | 🟡 | 0 / 2 | Convite gera link manual — falta envio automático por e-mail (Fase 2). Já tem: papel + permissões customizadas por membro. |
+| 5 | Papéis e permissões | ✅ | 0 / 1 | Padrão fixo por role + override granular por membro (`members.custom_permissions`), aplicado no servidor em todas as rotas de escrita — não só escondendo botão. Alterar role/permissões de outro membro exige admin de verdade. |
 | 6 | Clientes | ✅ | 0 | CRUD completo. |
 | 7 | Kanban de conteúdo | ✅ | 0 | Drag-and-drop, upload de mídia, todos os status. |
 | 8 | Biblioteca/upload de mídia | 🟡 | 0 / 4 | Upload direto no conteúdo existe; biblioteca central reutilizável é o **Acervo digital** (#21, Fase 4). |
-| 9 | Aprovação interna | 🟡 | 1 | Status `aprovacao_interna` existe no workflow, mas não há tela/ação dedicada de aprovar internamente (hoje só a aprovação externa por link está completa). |
+| 9 | Aprovação interna | ✅ | 1 | Fluxo completo: solicitar → aprovar/pedir ajuste (com motivo) → histórico (`internal_approvals`) → publicar/agendar bloqueado enquanto pendente ou com ajuste em aberto. |
 | 10 | Aprovação pública por link | ✅ | 0 | Token, sem login, aprovar/pedir ajuste. |
 | 11 | Publicação em redes sociais | ✅ | 0 | Via Upload-Post, `publish-now`. |
 | 12 | Agendamento | ✅ | 0 | `scheduled_at` + cron `/api/cron/process-scheduled`. |
 | 13 | Upload-Post | ✅ | 0 | Conectar (JWT), status, publicar, agendar. |
 | 14 | WhatsApp via Z-API | ⚪ | 2 | Não implementado — ver seção dedicada abaixo. |
 | 15 | Telegram | ⚪ | 2 | Não implementado. |
-| 16 | Notificações | 🟡 | 1 | Tabela e RLS existem; **nenhuma rota gera notificações** e não há UI (sino/lista). |
+| 16 | Notificações | ✅ | 1 | In-app: sino no topbar, lida/não lida, isoladas por usuário (RLS). Gerada nos eventos de aprovação (solicitada/aprovada/ajuste, interna e externa), equipe (novo membro) e permissões alteradas. E-mail/WhatsApp/Telegram continuam na Fase 2. |
 | 17 | E-mail transacional | ⚪ | 2 | Não implementado (Resend). |
 | 18 | Billing/assinaturas | ⚪ | 3 | Não implementado (Stripe). |
 | 19 | Portal do cliente | ⚪ | 4 | Hoje só existe o link público de aprovação — não há área logada para o cliente final. |
@@ -55,13 +55,13 @@ Cada capacidade tem um status:
 | 31 | API de agente | ⚪ | 7 | Token bearer, endpoints programáticos (`/api/agent/*`). |
 | 32 | IA para geração/discovery | ⚪ | 8 | 🟣 requer `ANTHROPIC_API_KEY` (custo por uso). |
 | 33 | Painel administrativo | ⚪ | 9 | Super-admin do sistema (todas as orgs). |
-| 34 | Auditoria/logs | 🟡 | 1 | `activity_log` é populado por parte das rotas; falta tela de auditoria e cobertura completa. |
-| 35 | Permissões granulares | ⚪ | 1 | Matriz por membro (`custom_permissions`), substituindo o fixo por role. |
-| 36 | Configurações | 🟡 | 1+ | Hoje só nome/cor/chave Upload-Post; cada fase nova adiciona sua própria seção de configuração. |
-| 37 | Segurança | 🟡 | 1 | RLS ok; **faltam** security headers (CSP etc.), rate limiting, validação de entrada consistente (zod já está instalado, não é usado ainda). |
-| 38 | Observabilidade | ⚪ | 1 | Sem logging estruturado nem error tracking hoje. |
-| 39 | Testes automatizados | ⚪ | 1 | Nenhum teste no projeto hoje. |
-| 40 | Preparação para produção | 🟡 | 10 | Build/lint limpos; falta CI, validação de env no boot, error boundaries, backups. |
+| 34 | Auditoria/logs | 🟡 | 1 / 9 | `activity_log` é populado por mais rotas agora (permissões, aprovações); ainda falta uma **tela** de auditoria — fica natural junto do painel admin (Fase 9). |
+| 35 | Permissões granulares | ✅ | 1 | `members.custom_permissions` (override parcial sobre o padrão do role), com UI de edição em Equipe e enforcement no servidor em toda rota de escrita. |
+| 36 | Configurações | 🟡 | 1+ | Nome/cor/chave Upload-Post (chave nunca é reexibida depois de salva). Cada fase nova adiciona sua própria seção. |
+| 37 | Segurança | ✅ | 1 | RLS + headers (CSP, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy) + rate limiting best-effort nas rotas públicas/sensíveis + validação de entrada com zod + erros 500 sem vazar detalhe interno + secret da Upload-Post nunca reenviado ao cliente. Falta pra uma versão "definitiva": CSP com nonce, rate limit num store externo (Fase 10). |
+| 38 | Observabilidade | 🟡 | 1 / 10 | Erros de servidor logados (`console.error`, capturado pela Vercel) sem vazar detalhe ao cliente. Ainda falta logging estruturado e error tracking dedicado (Sentry ou similar) — Fase 10. |
+| 39 | Testes automatizados | ✅ | 1 | Primeira suíte (Vitest): lógica pura (permissões, validação, tokens, rate limit, gate de aprovação) + rotas de API com Supabase mockado (`tests/helpers/fake-supabase.ts`) — isolamento multi-tenant, bloqueio de operação sem permissão via chamada direta à API, fluxo de aprovação pública (token válido/inválido/expirado). Cobertura cresce nas fases seguintes, não é exaustiva ainda. |
+| 40 | Preparação para produção | 🟡 | 10 | Build/lint/testes limpos. Falta CI, validação de env no boot, error boundaries, backups. |
 
 ---
 
@@ -79,46 +79,62 @@ componentes).
 
 ---
 
-## Fase 1 — Fechar lacunas da fundação (qualidade, segurança, permissões)
+## Fase 1 — Fechar lacunas da fundação (qualidade, segurança, permissões) ✅ CONCLUÍDA
 
 **Objetivo**: completar o que ficou parcial na Fase 0 e estabelecer as bases
 de qualidade (segurança, observabilidade, testes) antes de acelerar a
 adição de módulos novos — evita acumular dívida técnica nas fases 2+.
 
-**Funcionalidades**: #5 (permissões granulares), #9 (aprovação interna),
-#16 (notificações in-app), #34 (auditoria — tela), #37 (segurança), #38
-(observabilidade), #39 (testes).
+**Entregue**: permissões granulares por membro (#5), aprovação interna
+ponta a ponta (#9), notificações in-app (#16), headers/CSP/rate limiting/
+validação/tratamento de erro (#37), primeira suíte de testes automatizados
+(#39). Auditoria (#34) e observabilidade avançada (#38) ficaram parcialmente
+cobertas — o resto migrou pra Fases 9 e 10 respectivamente (ver mapa de
+capacidades acima e o relatório da Fase 1 entregue na conversa).
+
+**Funcionalidades** (escopo original, referência): #5 (permissões
+granulares), #9 (aprovação interna), #16 (notificações in-app), #34
+(auditoria — tela), #37 (segurança), #38 (observabilidade), #39 (testes).
 
 **Dependências**: nenhuma externa — 100% interno ao código já existente.
 
-**Alterações de banco**:
-- `members.custom_permissions jsonb` (matriz granular, fallback para
-  `DEFAULT_PERMISSIONS[role]` quando `null`).
-- `approvals` (tabela nova, tipo `internal`/`external`) **ou** estender
-  `approval_links` com `type` — decisão técnica a tomar na fase (ver riscos).
-- Garantir triggers de `updated_at` e índices para as consultas de
-  auditoria (`activity_log` por `org_id + created_at`, já existe).
+**Alterações de banco** (aplicadas — `sql/002` a `sql/004`):
+- `members.custom_permissions jsonb` (override parcial sobre o padrão do
+  role, `null` = usa o padrão).
+- `internal_approvals` — tabela nova e isolada pra aprovação interna
+  (decisão tomada: **não** unificar com `approval_links`, que já
+  funcionava pra aprovação externa por token público — schemas e regras de
+  RLS diferentes o bastante pra não valer a refatoração).
+- RLS de `notifications` separada em policies por operação — a policy
+  original só deixava inserir notificação pra si mesmo, o que impedia
+  notificar outra pessoa (ex.: avisar o aprovador).
 
-**Frontend**: tela de aprovação interna no kanban; sino/lista de
-notificações no topbar; editor de permissões por membro em Equipe; tela de
-auditoria em Configurações.
+**Frontend**: painel de aprovação interna dentro do modal de conteúdo
+(`InternalApprovalPanel`); sino de notificações no topbar; editor de
+permissões por membro em Equipe (`PermissionsModal`). Tela de auditoria
+dedicada ficou pra Fase 9 (painel admin).
 
-**Backend/API**: `POST /api/conteudos/[id]/approve-internal`; geração de
-notificações nas rotas existentes (conteúdo criado, aprovação
-pedida/respondida, publicação); middleware de validação com `zod` nas
-rotas de escrita; rate limiting básico nas rotas públicas (`/api/aprovacao/*`,
-`/api/invite/*`).
+**Backend/API**: `POST /api/conteudos/[id]/internal-approval` (solicitar),
+`POST .../decision` (aprovar/ajustar), `GET .../internal-approval`
+(histórico); `assertContentIsPublishable` bloqueando `publish-now`/
+`schedule`/cron quando há aprovação pendente/ajuste; `/api/notificacoes`
+(listar, marcar lida, marcar todas); validação com `zod`
+(`src/lib/validation.ts`) nas rotas de maior exposição a input não
+confiável; rate limiting em memória (`src/lib/rate-limit.ts`) nas rotas
+públicas (`/api/aprovacao/*`, `/api/invite/*`) e sensíveis (upload de
+mídia, criação de convite).
 
-**Integrações externas**: nenhuma nova. Error tracking (ex.: Sentry) é
-🟣 **dependência externa opcional** — decidir se entra aqui ou fica para a
-Fase 10.
+**Integrações externas**: nenhuma nova. Error tracking dedicado (ex.:
+Sentry) **não entrou** nesta fase — fica como 🟣 dependência externa
+opcional pra Fase 10; por ora, erros de servidor são logados via
+`console.error` (capturado pela Vercel).
 
-**Variáveis de ambiente**: nenhuma nova obrigatória; `SENTRY_DSN` opcional
-se error tracking entrar nesta fase.
+**Variáveis de ambiente**: nenhuma nova.
 
-**Testes**: setup de Vitest (unit) + Playwright (E2E) — cobrir: signup →
-org criada; criar conteúdo → aprovar por link → publicar; RLS (usuário de
-uma org não acessa dados de outra).
+**Testes**: suíte Vitest (unit + rotas de API com Supabase mockado) — ver
+`src/lib/__tests__/` e `src/app/api/**/__tests__/`. E2E com navegador real
+(Playwright) não entrou nesta fase — as rotas já são testadas ponta a
+ponta ao nível de HTTP/lógica, mas não há teste de UI clicando na tela.
 
 **Critérios de conclusão**: aprovação interna funciona ponta a ponta;
 notificações aparecem em tempo real na UI; permissões por membro

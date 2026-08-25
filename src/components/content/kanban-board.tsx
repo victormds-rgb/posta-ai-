@@ -6,6 +6,7 @@ import { ContentCard } from '@/components/content/content-card'
 import { ContentModal } from '@/components/content/content-modal'
 import { CONTENT_STATUSES, type ContentItem, type ContentStatus } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { usePermissions } from '@/hooks/use-permissions'
 
 export function KanbanBoard({ clientId }: { clientId: string }) {
   const [items, setItems] = useState<ContentItem[] | null>(null)
@@ -15,6 +16,8 @@ export function KanbanBoard({ clientId }: { clientId: string }) {
     status: 'ideia',
   })
   const [dragOverColumn, setDragOverColumn] = useState<ContentStatus | null>(null)
+  const { permissions } = usePermissions()
+  const canManageContent = permissions?.manageContent ?? false
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/conteudos?client_id=${clientId}`)
@@ -41,6 +44,7 @@ export function KanbanBoard({ clientId }: { clientId: string }) {
   function handleDrop(status: ContentStatus, e: React.DragEvent) {
     e.preventDefault()
     setDragOverColumn(null)
+    if (!canManageContent) return
     const id = e.dataTransfer.getData('text/plain')
     if (id) moveItem(id, status)
   }
@@ -67,13 +71,15 @@ export function KanbanBoard({ clientId }: { clientId: string }) {
               <h3 className="text-sm font-semibold">
                 {column.label} <span className="text-muted">({columnItems.length})</span>
               </h3>
-              <button
-                onClick={() => setModalState({ open: true, item: null, status: column.value })}
-                className="rounded-md p-1 text-muted hover:bg-brand-soft hover:text-brand"
-                aria-label={`Novo em ${column.label}`}
-              >
-                <Plus className="size-4" />
-              </button>
+              {canManageContent && (
+                <button
+                  onClick={() => setModalState({ open: true, item: null, status: column.value })}
+                  className="rounded-md p-1 text-muted hover:bg-brand-soft hover:text-brand"
+                  aria-label={`Novo em ${column.label}`}
+                >
+                  <Plus className="size-4" />
+                </button>
+              )}
             </div>
 
             <div className="flex-1 space-y-2">
@@ -81,6 +87,7 @@ export function KanbanBoard({ clientId }: { clientId: string }) {
                 <ContentCard
                   key={item.id}
                   item={item}
+                  draggable={canManageContent}
                   onClick={() => setModalState({ open: true, item, status: item.status })}
                   onDragStart={(e) => e.dataTransfer.setData('text/plain', item.id)}
                 />

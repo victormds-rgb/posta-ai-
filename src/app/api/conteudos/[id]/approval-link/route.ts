@@ -3,6 +3,7 @@ import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { generateToken } from '@/lib/tokens'
 import { getAppUrl } from '@/lib/get-app-url'
+import { can } from '@/lib/permissions'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -10,6 +11,9 @@ type Params = { params: Promise<{ id: string }> }
 export async function POST(_request: Request, { params }: Params) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!can(ctx.member, 'manageContent')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
 
   const { id } = await params
   const supabase = await createServerSupabase()

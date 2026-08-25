@@ -6,11 +6,14 @@ import Link from 'next/link'
 import { ArrowLeft, ExternalLink, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Badge } from '@/components/ui/card'
+import { usePermissions } from '@/hooks/use-permissions'
 import type { Client, ClientSocialProfile } from '@/lib/types'
 
 export default function RedesSociaisPage() {
   const { slug } = useParams<{ slug: string }>()
   const [client, setClient] = useState<Client | null>(null)
+  const { permissions } = usePermissions()
+  const canManageIntegrations = permissions?.manageIntegrations ?? false
   const [profile, setProfile] = useState<ClientSocialProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
@@ -90,18 +93,20 @@ export default function RedesSociaisPage() {
               {profile ? `Perfil: ${profile.upload_post_username}` : 'Nenhuma conexão iniciada ainda.'}
             </p>
           </div>
-          <div className="flex gap-2">
-            {profile && (
-              <Button variant="secondary" size="sm" onClick={handleSync} loading={syncing}>
-                <RefreshCw className="size-4" />
-                Sincronizar
+          {canManageIntegrations && (
+            <div className="flex gap-2">
+              {profile && (
+                <Button variant="secondary" size="sm" onClick={handleSync} loading={syncing}>
+                  <RefreshCw className="size-4" />
+                  Sincronizar
+                </Button>
+              )}
+              <Button size="sm" onClick={handleConnect} loading={connecting}>
+                <ExternalLink className="size-4" />
+                {profile ? 'Gerenciar conexões' : 'Conectar redes'}
               </Button>
-            )}
-            <Button size="sm" onClick={handleConnect} loading={connecting}>
-              <ExternalLink className="size-4" />
-              {profile ? 'Gerenciar conexões' : 'Conectar redes'}
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
 
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}

@@ -7,11 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ClientFormModal } from '@/components/clients/client-form-modal'
+import { usePermissions } from '@/hooks/use-permissions'
 import type { Client } from '@/lib/types'
 
 export default function ClientesPage() {
   const [clients, setClients] = useState<Client[] | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const { permissions } = usePermissions()
+  const canManageClients = permissions?.manageClients ?? false
 
   const load = useCallback(async () => {
     const res = await fetch('/api/clientes')
@@ -33,10 +36,12 @@ export default function ClientesPage() {
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-sm text-muted">Cada cliente tem seu próprio quadro de conteúdo.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="size-4" />
-          Novo cliente
-        </Button>
+        {canManageClients && (
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus className="size-4" />
+            Novo cliente
+          </Button>
+        )}
       </div>
 
       {clients === null ? (
@@ -46,7 +51,7 @@ export default function ClientesPage() {
           icon={<Building2 className="size-8" />}
           title="Nenhum cliente ainda"
           description="Crie o primeiro cliente para começar a planejar conteúdo."
-          action={<Button onClick={() => setModalOpen(true)}>Novo cliente</Button>}
+          action={canManageClients ? <Button onClick={() => setModalOpen(true)}>Novo cliente</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

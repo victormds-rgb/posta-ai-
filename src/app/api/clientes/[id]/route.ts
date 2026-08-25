@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
@@ -8,7 +9,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function PATCH(request: Request, { params }: Params) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageClients')) {
+  if (!can(ctx.member, 'manageClients')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -29,14 +30,14 @@ export async function PATCH(request: Request, { params }: Params) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'clientes.update')
   return NextResponse.json({ client: data })
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageClients')) {
+  if (!can(ctx.member, 'manageClients')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -44,6 +45,6 @@ export async function DELETE(_request: Request, { params }: Params) {
   const supabase = await createServerSupabase()
   const { error } = await supabase.from('clients').delete().eq('id', id).eq('org_id', ctx.organization.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return serverError(error, 'clientes.update')
   return NextResponse.json({ success: true })
 }

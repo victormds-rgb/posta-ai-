@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { serverError } from '@/lib/errors'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
@@ -6,7 +7,7 @@ import { can } from '@/lib/permissions'
 export async function PATCH(request: Request) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  if (!can(ctx.member.role, 'manageSettings')) {
+  if (!can(ctx.member, 'manageSettings')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
@@ -24,6 +25,10 @@ export async function PATCH(request: Request) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ organization: data })
+  if (error) return serverError(error, 'configuracoes')
+
+  // Nunca devolve a chave crua no response — só se ela está configurada.
+  const { upload_post_api_key, ...safeOrganization } = data
+  void upload_post_api_key
+  return NextResponse.json({ organization: { ...safeOrganization, hasUploadPostKey: !!data.upload_post_api_key } })
 }

@@ -4,16 +4,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Users, CalendarDays, UsersRound, Settings, Rocket } from 'lucide-react'
+import type { RolePermissions } from '@/lib/types'
 
-const NAV = [
+const NAV: { href: string; label: string; icon: typeof Users; requires?: keyof RolePermissions }[] = [
   { href: '/clientes', label: 'Clientes', icon: Users },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays },
   { href: '/equipe', label: 'Equipe', icon: UsersRound },
-  { href: '/configuracoes', label: 'Configurações', icon: Settings },
+  { href: '/configuracoes', label: 'Configurações', icon: Settings, requires: 'manageSettings' },
 ]
 
-export function Sidebar({ orgName }: { orgName: string }) {
+export function Sidebar({ orgName, permissions }: { orgName: string; permissions: RolePermissions }) {
   const pathname = usePathname()
+  const items = NAV.filter((item) => !item.requires || permissions[item.requires])
 
   return (
     <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-border bg-surface">
@@ -25,7 +27,7 @@ export function Sidebar({ orgName }: { orgName: string }) {
         {orgName}
       </p>
       <nav className="flex-1 space-y-1 px-3">
-        {NAV.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`)
           return (
             <Link

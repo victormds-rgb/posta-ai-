@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabase, createAdminSupabase } from '@/lib/supabase/server'
+import { notifyMany } from '@/lib/notifications'
+import { rateLimit, rateLimitedResponse, getClientIp } from '@/lib/rate-limit'
+import { parseBody, inviteAcceptSchema } from '@/lib/validation'
+import type { Member } from '@/lib/types'
 
 /** Vincula o usuário logado à organização do convite. Requer sessão ativa. */
 export async function POST(request: Request) {
+  const limit = rateLimit(`invite:accept:${getClientIp(request)}`, 10, 15 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
+
   const supabase = await createServerSupabase()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const body = await request.json().catch(() => ({}))
-  const token: string | undefined = body?.token
-  if (!token) return NextResponse.json({ error: 'token é obrigatório' }, { status: 400 })
+  const { data: parsed, error: validationError } = await parseBody(request, inviteAcceptSchema)
+  if (validationError) return validationError
+  const { token } = parsed
 
   const admin = createAdminSupabase()
   const { data: invite } = await admin.from('invites').select('*').eq('token', token).maybeSingle()
@@ -36,6 +43,20 @@ export async function POST(request: Request) {
   )
 
   await admin.from('invites').update({ accepted_at: new Date().toISOString() }).eq('id', invite.id)
+
+  const { data: admins } = await admin
+    .from('members')
+    .select('*')
+    .eq('org_id', invite.org_id)
+    .eq('role', 'admin')
+    .eq('status', 'active')
+  const adminIds = ((admins ?? []) as Member[]).map((m) => m.user_id).filter((id) => id !== user.id)
+  await notifyMany(admin, adminIds, {
+    orgId: invite.org_id,
+    type: 'team_member_joined',
+    title: 'Novo membro na equipe',
+    body: user.user_metadata?.full_name || user.email || undefined,
+  })
 
   return NextResponse.json({ success: true })
 }

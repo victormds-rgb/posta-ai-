@@ -4,34 +4,65 @@ import { useState, type FormEvent } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/input'
-import type { Organization } from '@/lib/types'
 
-export function SettingsForm({ organization, canEdit }: { organization: Organization; canEdit: boolean }) {
-  const [name, setName] = useState(organization.name)
-  const [brandColor, setBrandColor] = useState(organization.brand_color)
-  const [uploadPostKey, setUploadPostKey] = useState(organization.upload_post_api_key || '')
+export function SettingsForm({
+  name: initialName,
+  brandColor: initialBrandColor,
+  hasUploadPostKey: initialHasKey,
+  canEdit,
+}: {
+  name: string
+  brandColor: string
+  /** Nunca recebemos a chave real do servidor — só se ela está configurada. */
+  hasUploadPostKey: boolean
+  canEdit: boolean
+}) {
+  const [name, setName] = useState(initialName)
+  const [brandColor, setBrandColor] = useState(initialBrandColor)
+  const [uploadPostKey, setUploadPostKey] = useState('')
+  const [hasUploadPostKey, setHasUploadPostKey] = useState(initialHasKey)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function save(body: Record<string, unknown>) {
     setSaving(true)
     setError(null)
     setSaved(false)
     const res = await fetch('/api/configuracoes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, brand_color: brandColor, upload_post_api_key: uploadPostKey }),
+      body: JSON.stringify(body),
     })
     setSaving(false)
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       setError(data.error || 'Não foi possível salvar.')
-      return
+      return false
     }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    return true
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const body: Record<string, unknown> = { name, brand_color: brandColor }
+    // Só manda a chave se o usuário digitou uma nova — em branco mantém a atual.
+    if (uploadPostKey.trim()) body.upload_post_api_key = uploadPostKey.trim()
+    const ok = await save(body)
+    if (ok && uploadPostKey.trim()) {
+      setHasUploadPostKey(true)
+      setUploadPostKey('')
+    }
+  }
+
+  async function handleRemoveKey() {
+    if (!confirm('Remover a chave da Upload-Post desta organização? Volta a usar o fallback do servidor, se houver.')) {
+      return
+    }
+    const ok = await save({ upload_post_api_key: null })
+    if (ok) setHasUploadPostKey(false)
   }
 
   return (
@@ -62,19 +93,25 @@ export function SettingsForm({ organization, canEdit }: { organization: Organiza
           <p className="font-medium">Upload-Post</p>
           <p className="text-sm text-muted">
             Chave da API usada para conectar redes sociais e publicar conteúdo. Sem chave própria, usamos o fallback
-            do servidor (se configurado).
+            do servidor (se configurado). Por segurança, a chave salva nunca é reexibida — só é possível substituir
+            ou remover.
           </p>
         </div>
         <div>
-          <Label htmlFor="org-upload-post-key">Chave da API</Label>
+          <Label htmlFor="org-upload-post-key">{hasUploadPostKey ? 'Substituir chave' : 'Chave da API'}</Label>
           <Input
             id="org-upload-post-key"
             type="password"
             disabled={!canEdit}
             value={uploadPostKey}
             onChange={(e) => setUploadPostKey(e.target.value)}
-            placeholder="upk_..."
+            placeholder={hasUploadPostKey ? '•••••••••••••• (configurada)' : 'upk_...'}
           />
+          {hasUploadPostKey && canEdit && (
+            <button type="button" onClick={handleRemoveKey} className="mt-1.5 text-xs text-danger hover:underline">
+              Remover chave configurada
+            </button>
+          )}
         </div>
       </Card>
 

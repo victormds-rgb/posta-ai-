@@ -1,12 +1,15 @@
 import 'server-only'
 import { createServerSupabase } from '@/lib/supabase/server'
-import type { Member, Organization } from '@/lib/types'
+import { getEffectivePermissions } from '@/lib/permissions'
+import type { Member, Organization, RolePermissions } from '@/lib/types'
 
 export interface CurrentContext {
   userId: string
   email: string | null
   member: Member
   organization: Organization
+  /** Permissões efetivas (role + override) — já resolvidas, prontas pra checar/renderizar. */
+  permissions: RolePermissions
 }
 
 /**
@@ -37,6 +40,12 @@ export async function getCurrentContext(): Promise<CurrentContext | null> {
     .single<Organization>()
   if (!organization) return null
 
-  return { userId: user.id, email: user.email ?? null, member, organization }
+  return {
+    userId: user.id,
+    email: user.email ?? null,
+    member,
+    organization,
+    permissions: getEffectivePermissions(member),
+  }
 }
 

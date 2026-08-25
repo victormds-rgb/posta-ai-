@@ -7,6 +7,8 @@ import { Input, Label, Textarea } from '@/components/ui/input'
 import { MediaUploader } from '@/components/upload/media-uploader'
 import { CONTENT_STATUSES, SOCIAL_PLATFORMS, type ContentItem, type ContentStatus, type ContentType } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { usePermissions } from '@/hooks/use-permissions'
+import { InternalApprovalPanel } from '@/components/content/internal-approval-panel'
 import { Trash2, Link2, Check, Send } from 'lucide-react'
 
 const CONTENT_TYPES: { value: ContentType; label: string }[] = [
@@ -50,6 +52,10 @@ export function ContentModal({
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
   const [published, setPublished] = useState(false)
+  const { permissions } = usePermissions()
+  const canManageContent = permissions?.manageContent ?? false
+  const canPublish = permissions?.publish ?? false
+  const canApproveInternal = permissions?.approveInternal ?? false
 
   useEffect(() => {
     if (!open) return
@@ -165,6 +171,7 @@ export function ContentModal({
   return (
     <Modal open={open} onClose={onClose} title={item ? 'Editar conteúdo' : 'Novo conteúdo'} className="max-w-2xl">
       <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset disabled={!canManageContent} className="space-y-4 disabled:opacity-60">
         <div>
           <Label htmlFor="content-title">Título</Label>
           <Input id="content-title" required value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
@@ -254,7 +261,20 @@ export function ContentModal({
           />
         </div>
 
-        {item && (
+        </fieldset>
+
+        {item && (canManageContent || canApproveInternal) && (
+          <InternalApprovalPanel
+            contentId={item.id}
+            canRequest={canManageContent}
+            canDecide={canApproveInternal}
+            onChanged={() => {
+              onSaved()
+            }}
+          />
+        )}
+
+        {item && canManageContent && (
           <div className="rounded-lg border border-border bg-black/[0.02] p-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">Aprovação do cliente</p>
@@ -274,7 +294,7 @@ export function ContentModal({
           </div>
         )}
 
-        {item && (
+        {item && canPublish && (
           <div className="rounded-lg border border-border bg-black/[0.02] p-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">Publicação</p>
@@ -297,7 +317,7 @@ export function ContentModal({
         {error && <p className="text-sm text-danger">{error}</p>}
 
         <div className="flex items-center justify-between pt-2">
-          {item ? (
+          {item && canManageContent ? (
             <Button type="button" variant="ghost" onClick={handleDelete} className="text-danger">
               <Trash2 className="size-4" />
               Excluir
@@ -307,11 +327,13 @@ export function ContentModal({
           )}
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={onClose}>
-              Cancelar
+              {canManageContent ? 'Cancelar' : 'Fechar'}
             </Button>
-            <Button type="submit" loading={saving}>
-              Salvar
-            </Button>
+            {canManageContent && (
+              <Button type="submit" loading={saving}>
+                Salvar
+              </Button>
+            )}
           </div>
         </div>
       </form>

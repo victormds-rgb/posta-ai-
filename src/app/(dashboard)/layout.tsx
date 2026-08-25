@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: LayoutProps<'/'>) {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar orgName={ctx.organization.name} />
+      <Sidebar orgName={ctx.organization.name} permissions={ctx.permissions} />
       <div className="flex flex-1 flex-col">
         <Topbar member={ctx.member} />
         <main className="flex-1 bg-background p-6">{children}</main>

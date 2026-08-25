@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminSupabase } from '@/lib/supabase/server'
 import { publishPost } from '@/lib/upload-post'
 import { getOrgUploadPostKey } from '@/lib/org-upload-post'
+import { assertContentIsPublishable } from '@/lib/approvals'
 import type { ClientSocialProfile, ContentItem, Organization } from '@/lib/types'
 
 /**
@@ -39,6 +40,12 @@ export async function GET(request: Request) {
       .maybeSingle()
     if (!profile || item.media_urls.length === 0 || item.channels.length === 0) {
       results.push({ id: item.id, ok: false, error: 'faltam mídia, canais ou redes conectadas' })
+      continue
+    }
+
+    const approvalCheck = await assertContentIsPublishable(supabase, item.id)
+    if (!approvalCheck.ok) {
+      results.push({ id: item.id, ok: false, error: approvalCheck.reason })
       continue
     }
 
