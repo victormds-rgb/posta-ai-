@@ -9,11 +9,18 @@ import { getAppUrl } from '@/lib/get-app-url'
 import { internalApprovalRequestedEmail } from '@/lib/email/templates'
 import { getOrgTelegramConfig } from '@/lib/org-telegram'
 import { telegramSendMessage } from '@/lib/telegram'
+import { assertPortalClientAccess } from '@/lib/portal'
 import type { ContentItem, InternalApproval } from '@/lib/types'
 
 type Params = { params: Promise<{ id: string }> }
 
-/** Histórico de aprovações internas do conteúdo (mais recente primeiro). */
+/**
+ * Histórico de aprovações internas do conteúdo (mais recente primeiro).
+ * Comentários de revisão interna nunca são pra um cliente final ver — nem
+ * do cliente certo, quanto mais de outro cliente do mesmo org. Por isso,
+ * pra um membro `role: cliente`, exige vínculo (client_members) com o
+ * cliente dono do conteúdo, igual ao resto das rotas do Portal.
+ */
 export async function GET(_request: Request, { params }: Params) {
   const ctx = await getCurrentContext()
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -23,11 +30,16 @@ export async function GET(_request: Request, { params }: Params) {
 
   const { data: content } = await supabase
     .from('content_items')
-    .select('id')
+    .select('id, client_id')
     .eq('id', id)
     .eq('org_id', ctx.organization.id)
     .maybeSingle()
   if (!content) return NextResponse.json({ error: 'Conteúdo não encontrado' }, { status: 404 })
+
+  if (ctx.member.role === 'cliente') {
+    const allowed = await assertPortalClientAccess(supabase, ctx.member.id, content.client_id)
+    if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
 
   const { data, error } = await supabase
     .from('internal_approvals')

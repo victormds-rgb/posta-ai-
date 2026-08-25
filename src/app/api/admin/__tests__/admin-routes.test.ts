@@ -17,8 +17,8 @@ vi.mock('@/lib/admin-auth', () => ({
 describe('GET /api/admin/organizacoes', () => {
   beforeEach(() => {
     fakeSupabase.__store.organizations = [
-      { id: 'org-1', name: 'Org A', slug: 'org-a', plan: 'pro', created_at: '2026-01-01' },
-      { id: 'org-2', name: 'Org B', slug: 'org-b', plan: 'free', created_at: '2026-01-02' },
+      { id: 'org-1', name: 'Org A', slug: 'org-a', plan: 'pro', upload_post_api_key: 'segredo-real-1', created_at: '2026-01-01' },
+      { id: 'org-2', name: 'Org B', slug: 'org-b', plan: 'free', upload_post_api_key: 'segredo-real-2', created_at: '2026-01-02' },
     ]
     mockAdmin = null
   })
@@ -37,11 +37,23 @@ describe('GET /api/admin/organizacoes', () => {
     const body = await res.json()
     expect(body.organizations).toHaveLength(2)
   })
+
+  it('nunca devolve upload_post_api_key (texto puro) em nenhuma organização', async () => {
+    mockAdmin = { userId: 'u1', email: 'admin@produto.com' }
+    const { GET } = await import('../organizacoes/route')
+    const res = await GET()
+    const body = await res.json()
+    for (const org of body.organizations) {
+      expect(org.upload_post_api_key).toBeUndefined()
+    }
+  })
 })
 
 describe('GET/PATCH /api/admin/organizacoes/[id]', () => {
   beforeEach(() => {
-    fakeSupabase.__store.organizations = [{ id: 'org-1', name: 'Org A', slug: 'org-a', plan: 'free', created_at: '2026-01-01' }]
+    fakeSupabase.__store.organizations = [
+      { id: 'org-1', name: 'Org A', slug: 'org-a', plan: 'free', upload_post_api_key: 'segredo-real', created_at: '2026-01-01' },
+    ]
     fakeSupabase.__store.members = [{ id: 'm1', org_id: 'org-1', user_id: 'u2', role: 'admin', display_name: 'Dono', created_at: '2026-01-01' }]
     fakeSupabase.__store.clients = []
     fakeSupabase.__store.content_items = []
@@ -65,7 +77,14 @@ describe('GET/PATCH /api/admin/organizacoes/[id]', () => {
     expect(body.members).toHaveLength(1)
   })
 
-  it('muda o plano manualmente e registra em activity_log', async () => {
+  it('nunca devolve upload_post_api_key no detalhe da organização', async () => {
+    const { GET } = await import('../organizacoes/[id]/route')
+    const res = await GET(new Request('http://x'), { params: Promise.resolve({ id: 'org-1' }) })
+    const body = await res.json()
+    expect(body.organization.upload_post_api_key).toBeUndefined()
+  })
+
+  it('muda o plano manualmente, registra em activity_log e não devolve a chave', async () => {
     const { PATCH } = await import('../organizacoes/[id]/route')
     const res = await PATCH(new Request('http://x', { method: 'PATCH', body: JSON.stringify({ plan: 'agency' }) }), {
       params: Promise.resolve({ id: 'org-1' }),
@@ -73,6 +92,7 @@ describe('GET/PATCH /api/admin/organizacoes/[id]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.organization.plan).toBe('agency')
+    expect(body.organization.upload_post_api_key).toBeUndefined()
     expect(fakeSupabase.__store.activity_log).toHaveLength(1)
     expect(fakeSupabase.__store.activity_log[0].action).toBe('admin.plan_changed')
   })

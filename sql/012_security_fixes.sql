@@ -1,0 +1,26 @@
+-- ============================================================================
+--  Posta AI — Correções de segurança da auditoria de prontidão (P0)
+--  Rode depois de sql/011_ai_content.sql.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- stripe_webhook_events era a única tabela das 30 sem RLS habilitada. Sem
+-- isso, ela fica acessível via API REST pública do Supabase (com a anon key,
+-- que é pública por design) segundo os grants padrão do schema — mesmo só
+-- guardando id/type do evento Stripe (nada sensível), isso abre um vetor de
+-- "envenenar" a idempotência: alguém que descubra um event.id do Stripe (não
+-- é secreto por natureza) poderia inserir a linha manualmente antes do
+-- webhook real chegar, fazendo o handler real (src/app/api/billing/webhook)
+-- achar que "já processou" e ignorar o evento de verdade — dessincronizando
+-- o plano da organização do Stripe silenciosamente.
+--
+-- Esta tabela só é (e só deve ser) tocada pelo service role, no webhook do
+-- Stripe (createAdminSupabase(), que ignora RLS de qualquer forma) — então
+-- habilitar RLS sem NENHUMA policy pra anon/authenticated é a correção
+-- certa: fecha o acesso via API pública, sem quebrar o único caminho que
+-- realmente usa essa tabela.
+-- ---------------------------------------------------------------------------
+alter table stripe_webhook_events enable row level security;
+-- Nenhuma policy criada de propósito — anon/authenticated ficam sem
+-- select/insert/update/delete algum; só o service role (que ignora RLS)
+-- continua acessando, como já era o único uso real desta tabela.

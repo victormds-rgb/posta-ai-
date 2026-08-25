@@ -22,6 +22,20 @@ export async function GET(_request: Request, { params }: Params) {
     if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
+  // Confere que a pasta pedida é mesmo do cliente da URL — sem isso, dava
+  // pra listar arquivos de uma pasta de OUTRO cliente do mesmo org trocando
+  // só o folderId. A RLS (media_files_client_select) já bloqueia isso pra
+  // role=cliente hoje, mas a checagem na aplicação é a defesa que não
+  // depende da policy do banco continuar exatamente como está.
+  const { data: folder } = await supabase
+    .from('media_folders')
+    .select('id')
+    .eq('id', folderId)
+    .eq('client_id', clientId)
+    .eq('org_id', ctx.organization.id)
+    .maybeSingle()
+  if (!folder) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
   const { data, error } = await supabase
     .from('media_files')
     .select('*')

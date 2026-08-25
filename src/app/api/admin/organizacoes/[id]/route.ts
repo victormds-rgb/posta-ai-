@@ -11,6 +11,12 @@ const adminPlanUpdateSchema = z.object({
   plan: z.enum(['free', 'starter', 'pro', 'agency']),
 })
 
+// Nunca select('*') em organizations nesta rota — upload_post_api_key é
+// guardada em texto puro (Fase 0, nunca migrada pro esquema de cifra da
+// Fase 2+) e não pode vazar pra nenhuma resposta de API, nem pro super-admin.
+const ORG_SAFE_COLUMNS =
+  'id, name, slug, logo_url, plan, brand_color, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end, cancel_at_period_end, trial_end, created_at, updated_at'
+
 /** Detalhe de uma organização — equipe, clientes, uso. */
 export async function GET(_request: Request, { params }: Params) {
   const admin = await requireSuperAdmin()
@@ -20,7 +26,7 @@ export async function GET(_request: Request, { params }: Params) {
   const supabase = createAdminSupabase()
 
   const [{ data: org }, { data: members }, { data: clients }, { count: contentCount }] = await Promise.all([
-    supabase.from('organizations').select('*').eq('id', id).maybeSingle(),
+    supabase.from('organizations').select(ORG_SAFE_COLUMNS).eq('id', id).maybeSingle(),
     supabase.from('members').select('*').eq('org_id', id),
     supabase.from('clients').select('*').eq('org_id', id),
     supabase.from('content_items').select('id', { count: 'exact', head: true }).eq('org_id', id),
@@ -45,7 +51,12 @@ export async function PATCH(request: Request, { params }: Params) {
   if (validationError) return validationError
 
   const supabase = createAdminSupabase()
-  const { data, error } = await supabase.from('organizations').update({ plan: body.plan }).eq('id', id).select('*').single()
+  const { data, error } = await supabase
+    .from('organizations')
+    .update({ plan: body.plan })
+    .eq('id', id)
+    .select(ORG_SAFE_COLUMNS)
+    .single()
   if (error) return NextResponse.json({ error: 'Erro ao atualizar' }, { status: 500 })
 
   await supabase.from('activity_log').insert({

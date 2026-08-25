@@ -10,6 +10,23 @@ function matches(row: Row, filters: ((r: Row) => boolean)[]) {
   return filters.every((f) => f(row))
 }
 
+/**
+ * Projeta as colunas pedidas em `.select('col1, col2')`, como o Postgrest
+ * faria de verdade — sem isso, uma rota que restringe colunas por segurança
+ * (ex.: nunca devolver um secret) passaria no teste mesmo devolvendo a
+ * linha inteira, porque o fake sempre devolvia tudo. Não lida com
+ * relacionamentos aninhados (`col:tabela(...)`) — não usados neste projeto.
+ */
+function project(row: Row, columns: string | undefined): Row {
+  if (!columns || columns.trim() === '*') return row
+  const cols = columns.split(',').map((c) => c.trim())
+  const projected: Row = {}
+  for (const col of cols) {
+    if (col in row) projected[col] = row[col]
+  }
+  return projected
+}
+
 export function createFakeSupabase(initial: Store = {}) {
   const store: Store = JSON.parse(JSON.stringify(initial))
 
@@ -22,6 +39,7 @@ export function createFakeSupabase(initial: Store = {}) {
     let mode: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select'
     let payload: Row | Row[] | null = null
     let upsertConflictCols: string[] = []
+    let selectColumns: string | undefined
 
     function finishSelectLike(result: Row[], kind: 'single' | 'maybeSingle' | 'list') {
       if (kind === 'single') {
@@ -44,7 +62,7 @@ export function createFakeSupabase(initial: Store = {}) {
           ...r,
         }))
         store[table].push(...inserted)
-        return finishSelectLike(inserted, kind)
+        return finishSelectLike(inserted.map((r) => project(r, selectColumns)), kind)
       }
       if (mode === 'upsert') {
         const rows = Array.isArray(payload) ? payload : [payload as Row]
@@ -62,12 +80,12 @@ export function createFakeSupabase(initial: Store = {}) {
             result.push(row)
           }
         }
-        return finishSelectLike(result, kind)
+        return finishSelectLike(result.map((r) => project(r, selectColumns)), kind)
       }
       if (mode === 'update') {
         const matched = store[table].filter((r) => matches(r, filters))
         matched.forEach((r) => Object.assign(r, payload))
-        return finishSelectLike(matched, kind)
+        return finishSelectLike(matched.map((r) => project(r, selectColumns)), kind)
       }
       if (mode === 'delete') {
         const matched = store[table].filter((r) => matches(r, filters))
@@ -86,11 +104,12 @@ export function createFakeSupabase(initial: Store = {}) {
         })
       }
       if (limitN != null) result = result.slice(0, limitN)
-      return finishSelectLike(result, kind)
+      return finishSelectLike(result.map((r) => project(r, selectColumns)), kind)
     }
 
     const builder = {
-      select() {
+      select(columns?: string) {
+        selectColumns = columns
         return builder
       },
       insert(rows: Row | Row[]) {

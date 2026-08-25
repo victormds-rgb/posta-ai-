@@ -12,7 +12,10 @@ export async function GET() {
   const supabase = createAdminSupabase()
 
   const [{ data: orgs }, { count: totalMembers }, { count: totalContent }, { count: totalClients }] = await Promise.all([
-    supabase.from('organizations').select('*'),
+    // Só os campos usados no cálculo abaixo — nunca select('*') em
+    // organizations (upload_post_api_key é texto puro, nem precisa
+    // transitar pela memória do processo aqui).
+    supabase.from('organizations').select('plan, subscription_status, created_at'),
     supabase.from('members').select('id', { count: 'exact', head: true }),
     supabase.from('content_items').select('id', { count: 'exact', head: true }),
     supabase.from('clients').select('id', { count: 'exact', head: true }),
