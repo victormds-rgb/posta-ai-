@@ -3,7 +3,7 @@ import { createFakeSupabase } from '@tests/helpers/fake-supabase'
 import { getEffectivePermissions } from '@/lib/permissions'
 import type { Member, Organization } from '@/lib/types'
 
-const fakeSupabase = createFakeSupabase({ content_items: [], activity_log: [] })
+const fakeSupabase = createFakeSupabase({ content_items: [], activity_log: [], client_members: [] })
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: vi.fn(async () => fakeSupabase),
@@ -83,6 +83,44 @@ describe('POST /api/conteudos', () => {
     const { POST } = await import('../route')
     const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ client_id: 'abc' }) }))
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/conteudos — escopo do Portal (role: cliente)', () => {
+  const OTHER_CLIENT_UUID = '223e4567-e89b-12d3-a456-426614174000'
+
+  beforeEach(() => {
+    fakeSupabase.__store.content_items = [
+      { id: 'ct-1', org_id: 'org-1', client_id: CLIENT_UUID, title: 'Do cliente vinculado', status: 'ideia', media_urls: [], channels: [], created_at: '2026-01-01' },
+      { id: 'ct-2', org_id: 'org-1', client_id: OTHER_CLIENT_UUID, title: 'De outro cliente', status: 'ideia', media_urls: [], channels: [], created_at: '2026-01-01' },
+    ]
+    fakeSupabase.__store.client_members = [{ id: 'cm1', member_id: 'member-1', client_id: CLIENT_UUID, created_at: '2026-01-01' }]
+    currentContext = null
+  })
+
+  it('membro role=cliente só vê conteúdo do cliente vinculado a ele', async () => {
+    currentContext = makeContext('cliente')
+    const { GET } = await import('../route')
+    const res = await GET(new Request('http://x'))
+    const body = await res.json()
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0].id).toBe('ct-1')
+  })
+
+  it('membro role=cliente pedindo client_id de outro cliente não recebe nada', async () => {
+    currentContext = makeContext('cliente')
+    const { GET } = await import('../route')
+    const res = await GET(new Request(`http://x?client_id=${OTHER_CLIENT_UUID}`))
+    const body = await res.json()
+    expect(body.items).toHaveLength(0)
+  })
+
+  it('staff (designer) continua vendo tudo da organização normalmente', async () => {
+    currentContext = makeContext('designer')
+    const { GET } = await import('../route')
+    const res = await GET(new Request('http://x'))
+    const body = await res.json()
+    expect(body.items).toHaveLength(2)
   })
 })
 

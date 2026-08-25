@@ -3,7 +3,7 @@ import { createFakeSupabase } from '@tests/helpers/fake-supabase'
 import { getEffectivePermissions } from '@/lib/permissions'
 import type { Member, Organization } from '@/lib/types'
 
-const fakeSupabase = createFakeSupabase({ clients: [] })
+const fakeSupabase = createFakeSupabase({ clients: [], client_members: [] })
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: vi.fn(async () => fakeSupabase),
@@ -51,6 +51,7 @@ function makeContext(role: Member['role']) {
 describe('POST /api/clientes', () => {
   beforeEach(() => {
     fakeSupabase.__store.clients = []
+    fakeSupabase.__store.client_members = []
     currentContext = null
   })
 
@@ -96,5 +97,29 @@ describe('POST /api/clientes', () => {
     const body = await res.json()
     expect(body.clients).toHaveLength(1)
     expect(body.clients[0].id).toBe('c1')
+  })
+
+  it('membro role=cliente só enxerga o(s) cliente(s) vinculado(s) via client_members (Portal)', async () => {
+    fakeSupabase.__store.clients = [
+      { id: 'c1', org_id: 'org-1', name: 'Cliente vinculado', slug: 'vinculado', created_at: '2026-01-01' },
+      { id: 'c2', org_id: 'org-1', name: 'Cliente NÃO vinculado', slug: 'nao-vinculado', created_at: '2026-01-01' },
+    ]
+    fakeSupabase.__store.client_members = [{ id: 'cm1', member_id: 'member-1', client_id: 'c1', created_at: '2026-01-01' }]
+    currentContext = makeContext('cliente')
+    const { GET } = await import('../route')
+    const res = await GET()
+    const body = await res.json()
+    expect(body.clients).toHaveLength(1)
+    expect(body.clients[0].id).toBe('c1')
+  })
+
+  it('membro role=cliente sem nenhum vínculo não vê nenhum cliente', async () => {
+    fakeSupabase.__store.clients = [{ id: 'c1', org_id: 'org-1', name: 'Cliente', slug: 'cliente', created_at: '2026-01-01' }]
+    fakeSupabase.__store.client_members = []
+    currentContext = makeContext('cliente')
+    const { GET } = await import('../route')
+    const res = await GET()
+    const body = await res.json()
+    expect(body.clients).toHaveLength(0)
   })
 })

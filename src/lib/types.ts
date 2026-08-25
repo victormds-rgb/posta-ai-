@@ -115,6 +115,52 @@ export interface Client {
   created_at: string
 }
 
+/** Vínculo entre um membro (role='cliente') e o(s) cliente(s) que ele enxerga no Portal. */
+export interface ClientMember {
+  id: string
+  member_id: string
+  client_id: string
+  created_at: string
+}
+
+/** Brand book — diretrizes de marca por cliente. */
+export interface BrandAsset {
+  id: string
+  org_id: string
+  client_id: string
+  primary_color: string | null
+  secondary_color: string | null
+  accent_color: string | null
+  fonts: string | null
+  logo_url: string | null
+  guidelines: string | null
+  updated_at: string
+  created_at: string
+}
+
+/** Acervo digital — pasta de mídia de um cliente, com opção de link público. */
+export interface MediaFolder {
+  id: string
+  org_id: string
+  client_id: string
+  name: string
+  public_token: string | null
+  created_at: string
+}
+
+/** Arquivo dentro de uma pasta do acervo. */
+export interface MediaFile {
+  id: string
+  org_id: string
+  folder_id: string
+  name: string
+  url: string
+  content_type: string | null
+  size_bytes: number | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface ClientSocialProfile {
   id: string
   org_id: string

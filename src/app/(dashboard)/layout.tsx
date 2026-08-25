@@ -10,6 +10,12 @@ export default async function DashboardLayout({ children }: LayoutProps<'/'>) {
     redirect('/login')
   }
 
+  // Membro `role: cliente` usa a área própria do Portal (escopo restrito ao
+  // seu client_id via client_members) — nunca o painel completo da agência.
+  if (ctx.member.role === 'cliente') {
+    redirect('/portal')
+  }
+
   return (
     <div className="flex min-h-screen">
       <Sidebar orgName={ctx.organization.name} permissions={ctx.permissions} />

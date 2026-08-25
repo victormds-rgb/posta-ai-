@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { KanbanBoard } from '@/components/content/kanban-board'
-import { Share2 } from 'lucide-react'
+import { Share2, Palette, FolderOpen } from 'lucide-react'
 import type { Client } from '@/lib/types'
 
 export default async function ClientWorkflowPage({
@@ -40,13 +40,29 @@ export default async function ClientWorkflowPage({
             <p className="text-sm text-muted">Workflow de conteúdo</p>
           </div>
         </div>
-        <Link
-          href={`/clientes/${client.slug}/redes`}
-          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-brand-soft"
-        >
-          <Share2 className="size-4" />
-          Redes sociais
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/clientes/${client.slug}/redes`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-brand-soft"
+          >
+            <Share2 className="size-4" />
+            Redes sociais
+          </Link>
+          <Link
+            href={`/clientes/${client.slug}/brand`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-brand-soft"
+          >
+            <Palette className="size-4" />
+            Brand book
+          </Link>
+          <Link
+            href={`/clientes/${client.slug}/acervo`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-brand-soft"
+          >
+            <FolderOpen className="size-4" />
+            Acervo digital
+          </Link>
+        </div>
       </div>
 
       <KanbanBoard clientId={client.id} />

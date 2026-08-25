@@ -6,6 +6,7 @@ import { slugify } from '@/lib/utils'
 import { can } from '@/lib/permissions'
 import { parseBody, clientCreateSchema } from '@/lib/validation'
 import { assertWithinClientLimit } from '@/lib/plan-limits'
+import { getPortalClientIds } from '@/lib/portal'
 import type { Client } from '@/lib/types'
 
 export async function GET() {
@@ -13,6 +14,22 @@ export async function GET() {
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const supabase = await createServerSupabase()
+
+  // Membro `role: cliente` só enxerga o(s) cliente(s) vinculado(s) a ele no
+  // Portal (client_members) — nunca a carteira inteira da organização.
+  if (ctx.member.role === 'cliente') {
+    const clientIds = await getPortalClientIds(supabase, ctx.member.id)
+    if (clientIds.length === 0) return NextResponse.json({ clients: [] })
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('org_id', ctx.organization.id)
+      .in('id', clientIds)
+      .order('created_at', { ascending: false })
+    if (error) return serverError(error, 'clientes')
+    return NextResponse.json({ clients: (data ?? []) as Client[] })
+  }
+
   const { data, error } = await supabase
     .from('clients')
     .select('*')

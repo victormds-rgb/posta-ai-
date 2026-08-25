@@ -5,6 +5,7 @@ import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
 import { parseBody, contentCreateSchema } from '@/lib/validation'
 import { assertWithinContentLimit } from '@/lib/plan-limits'
+import { getPortalClientIds } from '@/lib/portal'
 import type { ContentItem } from '@/lib/types'
 
 export async function GET(request: Request) {
@@ -15,6 +16,26 @@ export async function GET(request: Request) {
   const clientId = searchParams.get('client_id')
 
   const supabase = await createServerSupabase()
+
+  // Membro `role: cliente` só enxerga conteúdo do(s) cliente(s) vinculado(s)
+  // a ele no Portal — nunca o board inteiro da organização.
+  if (ctx.member.role === 'cliente') {
+    const allowedClientIds = await getPortalClientIds(supabase, ctx.member.id)
+    if (clientId && !allowedClientIds.includes(clientId)) {
+      return NextResponse.json({ items: [] })
+    }
+    if (allowedClientIds.length === 0) return NextResponse.json({ items: [] })
+    const query = supabase
+      .from('content_items')
+      .select('*')
+      .eq('org_id', ctx.organization.id)
+      .in('client_id', clientId ? [clientId] : allowedClientIds)
+      .order('created_at', { ascending: false })
+    const { data, error } = await query
+    if (error) return serverError(error, 'conteudos')
+    return NextResponse.json({ items: (data ?? []) as ContentItem[] })
+  }
+
   let query = supabase
     .from('content_items')
     .select('*')

@@ -7,7 +7,7 @@ import { Card, Badge } from '@/components/ui/card'
 import { Modal } from '@/components/ui/modal'
 import { Input, Label } from '@/components/ui/input'
 import { ROLE_PERMISSIONS, PERMISSION_LABELS } from '@/lib/permissions'
-import type { Invite, Member, RolePermissions, UserRole } from '@/lib/types'
+import type { Client, Invite, Member, RolePermissions, UserRole } from '@/lib/types'
 
 const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
@@ -210,6 +210,8 @@ function PermissionsModal({
   const [overrides, setOverrides] = useState<Partial<RolePermissions>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [clients, setClients] = useState<Client[]>([])
+  const [portalClientIds, setPortalClientIds] = useState<string[]>([])
 
   useEffect(() => {
     if (!member) return
@@ -217,9 +219,17 @@ function PermissionsModal({
     setRole(member.role)
     setOverrides(member.custom_permissions ?? {})
     setError(null)
+    fetch('/api/clientes').then((res) => (res.ok ? res.json() : { clients: [] })).then((data) => setClients(data.clients ?? []))
+    fetch(`/api/equipe/${member.id}/clientes`)
+      .then((res) => (res.ok ? res.json() : { client_ids: [] }))
+      .then((data) => setPortalClientIds(data.client_ids ?? []))
   }, [member])
 
   if (!member) return null
+
+  function toggleClientAccess(clientId: string) {
+    setPortalClientIds((prev) => (prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]))
+  }
 
   const roleDefaults = ROLE_PERMISSIONS[role]
 
@@ -256,6 +266,15 @@ function PermissionsModal({
       setError(data.error || 'Não foi possível salvar.')
       return
     }
+
+    if (role === 'cliente') {
+      await fetch(`/api/equipe/${member!.id}/clientes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_ids: portalClientIds }),
+      })
+    }
+
     onSaved()
     onClose()
   }
@@ -302,6 +321,27 @@ function PermissionsModal({
             })}
           </div>
         </div>
+
+        {role === 'cliente' && (
+          <div>
+            <Label>Acesso ao Portal</Label>
+            <p className="mb-1.5 text-xs text-muted">Cliente(s) que este usuário enxerga ao logar no Portal.</p>
+            <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-border p-3">
+              {clients.length === 0 && <p className="text-sm text-muted">Nenhum cliente cadastrado ainda.</p>}
+              {clients.map((c) => (
+                <label key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>{c.name}</span>
+                  <input
+                    type="checkbox"
+                    checked={portalClientIds.includes(c.id)}
+                    onChange={() => toggleClientAccess(c.id)}
+                    className="size-4 accent-brand"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         {error && <p className="text-sm text-danger">{error}</p>}
 

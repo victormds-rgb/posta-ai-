@@ -29,7 +29,7 @@ Cada capacidade tem um status:
 | 5 | Papéis e permissões | ✅ | 0 / 1 | Padrão fixo por role + override granular por membro (`members.custom_permissions`), aplicado no servidor em todas as rotas de escrita — não só escondendo botão. Alterar role/permissões de outro membro exige admin de verdade. |
 | 6 | Clientes | ✅ | 0 | CRUD completo. |
 | 7 | Kanban de conteúdo | ✅ | 0 | Drag-and-drop, upload de mídia, todos os status. |
-| 8 | Biblioteca/upload de mídia | 🟡 | 0 / 4 | Upload direto no conteúdo existe; biblioteca central reutilizável é o **Acervo digital** (#21, Fase 4). |
+| 8 | Biblioteca/upload de mídia | ✅ | 0 / 4 | Upload direto no conteúdo + biblioteca central reutilizável (**Acervo digital**, #21, pastas por cliente com link público). |
 | 9 | Aprovação interna | ✅ | 1 | Fluxo completo: solicitar → aprovar/pedir ajuste (com motivo) → histórico (`internal_approvals`) → publicar/agendar bloqueado enquanto pendente ou com ajuste em aberto. |
 | 10 | Aprovação pública por link | ✅ | 0 | Token, sem login, aprovar/pedir ajuste. |
 | 11 | Publicação em redes sociais | ✅ | 0 | Via Upload-Post, `publish-now`. |
@@ -40,10 +40,10 @@ Cada capacidade tem um status:
 | 16 | Notificações | ✅ | 1 | In-app: sino no topbar, lida/não lida, isoladas por usuário (RLS). Gerada nos eventos de aprovação (solicitada/aprovada/ajuste, interna e externa), equipe (novo membro) e permissões alteradas. E-mail/WhatsApp/Telegram continuam na Fase 2. |
 | 17 | E-mail transacional | ⚪ | 2 | Não implementado (Resend). |
 | 18 | Billing/assinaturas | ⚪ | 3 | Não implementado (Stripe). |
-| 19 | Portal do cliente | ⚪ | 4 | Hoje só existe o link público de aprovação — não há área logada para o cliente final. |
-| 20 | Subdomínios | ⚪ | 4 | Roteamento único hoje; `app./cliente./admin.` fica para cá. |
-| 21 | Acervo digital | ⚪ | 4 | Biblioteca de mídia compartilhável por cliente. |
-| 22 | Brand Book | ⚪ | 4 | — |
+| 19 | Portal do cliente | ✅ | 4 | Área logada em `/portal` (`role: cliente`), escopada por `client_members` — conteúdo, brand book e acervo do(s) cliente(s) vinculados. |
+| 20 | Subdomínios | 🔴 | 4 | Não implementado — depende de domínio de produção definitivo (DNS + cert wildcard), decisão de infraestrutura fora do código. Portal por path (`/portal`) cobre a mesma necessidade funcional por ora. |
+| 21 | Acervo digital | ✅ | 4 | Pastas de mídia por cliente, upload, exclusão, link público opcional sem login (`/acervo/[token]`). |
+| 22 | Brand Book | ✅ | 4 | Cores, fontes, logo e diretrizes por cliente; editável pela agência, visível pro cliente no Portal. |
 | 23 | Planejamento anual | ⚪ | 5 | — |
 | 24 | Campanhas | ⚪ | 5 | — |
 | 25 | Tarefas | ⚪ | 5 | — |
@@ -266,39 +266,73 @@ sincronia com o Stripe.
 
 ---
 
-## Fase 4 — Portal do cliente, subdomínios, acervo e brand book
+## Fase 4 — Portal do cliente, subdomínios, acervo e brand book ✅ CONCLUÍDA (exceto subdomínios)
 
 **Objetivo**: dar ao cliente final uma área própria (não só o link de
 aprovação avulso), e organizar a marca/mídia por cliente.
 
-**Funcionalidades**: #8 (biblioteca completa), #19, #20, #21, #22.
+**Entregue**: `client_members` (escopo de acesso do role `cliente`,
+aplicado no servidor — não só RLS de organização), Portal do cliente
+(`/portal`, `/portal/brand`, `/portal/acervo`), Brand Book por cliente
+(`/clientes/[slug]/brand`), Acervo digital com pastas e compartilhamento
+por link público sem login (`/clientes/[slug]/acervo`,
+`/acervo/[token]`), gestão de quais clientes cada membro `cliente` enxerga
+(dentro do editor de permissões em Equipe).
+
+**Funcionalidades**: #8 (biblioteca completa) ✅, #19 (portal) ✅, #20
+(subdomínios) ⚪ — ver nota abaixo, #21 (acervo) ✅, #22 (brand book) ✅.
 
 **Dependências**: Fase 1 (permissões — o role `cliente` precisa de escopo
-de acesso restrito ao próprio `client_id`), decisão de domínio próprio do
-produto antes de subdomínios fazerem sentido (ver Riscos — depende de DNS
-real, não de código).
+de acesso restrito ao próprio `client_id`) ✅ usada.
 
-**Banco**: `client_members` (associação membro↔cliente, para restringir o
-que um `role: cliente` enxerga); `brand_assets` (brand book: cores,
-logos, fontes, diretrizes por cliente); `media_library` (acervo,
-com pastas/categorias e flag de compartilhamento público).
+**Alterações de banco** (`sql/007_portal.sql`): `client_members`
+(membro↔cliente); `brand_assets` (cores, fontes, logo, diretrizes,
+`unique(client_id)`); `media_folders` (pasta por cliente, `public_token`
+opcional pra link sem login) e `media_files` (arquivo dentro da pasta,
+reaproveita o bucket `media` já existente do Supabase Storage — nenhum
+bucket novo foi necessário). RLS em todas: staff da agência tem acesso
+total à sua org; membro `cliente` só lê via `client_members`; pasta/
+arquivo com `public_token` fica de leitura pública.
 
-**Backend**: rotas `/api/portal/*` (dados do cliente logado), `/api/brand/*`,
-`/api/acervo/*`; `src/proxy.ts` ganha lógica de subdomínio (só se o domínio
-final do produto já estiver definido).
+**Decisão de arquitetura registrada**: a Fase 1 já deixou o `role:
+cliente` com permissões zeradas para escrita, mas as rotas `GET
+/api/clientes` e `GET /api/conteudos` liam por organização inteira, sem
+olhar pra `client_id` — ou seja, um membro `cliente` conseguia listar
+todos os clientes/conteúdos da agência via chamada direta à API (gap
+pré-existente, não introduzido nesta fase). Fechado nesta fase: essas
+duas rotas agora restringem a leitura de um membro `cliente` aos
+`client_id`s vinculados via `client_members`, e o layout de `/clientes`
+(agência) redireciona qualquer `role: cliente` para `/portal`. Seguindo o
+mesmo padrão já estabelecido na Fase 1 (enforcement de permissão na
+camada de aplicação, não reescrevendo as policies de RLS existentes),
+para não mexer no que já funcionava pras demais roles.
 
-**Frontend**: `src/app/(portal)/*` — nova área logada para `role: cliente`;
-telas de Brand Book e Acervo Digital dentro do painel da agência.
+**Subdomínios (#20)**: **não implementado nesta fase, por decisão
+deliberada** — depende de um domínio de produção real (DNS + certificado
+wildcard) que este projeto ainda não tem definido; ver `src/proxy.ts` para
+o ponto de extensão já preparado. O Portal (`/portal`) entrega o mesmo
+resultado funcional por caminho (path), sem depender de infraestrutura de
+domínio — fica pendente pra quando o domínio final for decidido (ver
+seção de pendências/manual no relatório final).
 
-**Integrações externas**: nenhuma nova — subdomínios dependem de DNS
-configurado no provedor de hospedagem (Vercel), não de uma API terceira.
+**Backend**: `POST/GET /api/clientes/[id]/brand`, `/api/clientes/[id]/
+acervo/pastas` (+ `[folderId]`, `+/arquivos`), `DELETE /api/acervo/
+arquivos/[fileId]`, `GET /api/acervo/publico/[token]` (público, rate
+limited), `GET/PUT /api/equipe/[id]/clientes` (vincula membro↔cliente).
 
-**Testes**: RLS garantindo que um `cliente` só vê seu próprio `client_id`;
-navegação por subdomínio em ambiente de preview.
+**Frontend**: `src/app/portal/*` (nova área logada pro `role: cliente`,
+com sidebar própria), `clientes/[slug]/brand` e `clientes/[slug]/acervo`
+no painel da agência, `acervo/[token]` (link público sem login).
 
-**Conclusão**: cliente final loga e vê só o que é dele; acervo e brand book
-funcionam por cliente; se subdomínios entrarem nesta fase, `cliente.dominio`
-resolve para o portal correto.
+**Testes**: isolamento do Portal por `client_members` (lib e rotas),
+brand book (staff sempre lê, `cliente` só o seu), acervo (isolamento por
+org/cliente, link público, permissão de escrita), vínculo membro↔cliente
+via Equipe.
+
+**Conclusão**: cliente final loga em `/portal` e vê só o que é dele;
+acervo e brand book funcionam por cliente, com opção de link público pro
+acervo. Subdomínio `cliente.dominio` fica como pendência de
+infraestrutura, não de código.
 
 ---
 

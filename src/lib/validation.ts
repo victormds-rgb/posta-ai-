@@ -69,6 +69,35 @@ export const checkoutSchema = z.object({
   interval: z.enum(['month', 'year']),
 })
 
+export const brandAssetSchema = z.object({
+  primary_color: z.string().trim().max(20).optional(),
+  secondary_color: z.string().trim().max(20).optional(),
+  accent_color: z.string().trim().max(20).optional(),
+  fonts: z.string().trim().max(1000).optional(),
+  logo_url: z.string().url().max(2000).optional(),
+  guidelines: z.string().trim().max(10000).optional(),
+})
+
+export const mediaFolderCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(255),
+})
+
+export const mediaFolderUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  public: z.boolean().optional(),
+})
+
+export const mediaFileCreateSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  url: z.string().url().max(2000),
+  content_type: z.string().trim().max(100).optional(),
+  size_bytes: z.number().int().nonnegative().max(500 * 1024 * 1024).optional(),
+})
+
+export const clientPortalAccessSchema = z.object({
+  client_ids: z.array(z.string().uuid()).max(100),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),
