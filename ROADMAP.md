@@ -59,9 +59,9 @@ Cada capacidade tem um status:
 | 35 | Permissões granulares | ✅ | 1 | `members.custom_permissions` (override parcial sobre o padrão do role), com UI de edição em Equipe e enforcement no servidor em toda rota de escrita. |
 | 36 | Configurações | 🟡 | 1+ | Nome/cor/chave Upload-Post (chave nunca é reexibida depois de salva). Cada fase nova adiciona sua própria seção. |
 | 37 | Segurança | ✅ | 1 | RLS + headers (CSP, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy) + rate limiting best-effort nas rotas públicas/sensíveis + validação de entrada com zod + erros 500 sem vazar detalhe interno + secret da Upload-Post nunca reenviado ao cliente. Falta pra uma versão "definitiva": CSP com nonce, rate limit num store externo (Fase 10). |
-| 38 | Observabilidade | 🟡 | 1 / 10 | Erros de servidor logados (`console.error`, capturado pela Vercel) sem vazar detalhe ao cliente. Ainda falta logging estruturado e error tracking dedicado (Sentry ou similar) — Fase 10. |
+| 38 | Observabilidade | 🟡 | 1 / 10 | Erros de servidor logados (`console.error`, capturado pela Vercel) sem vazar detalhe ao cliente; error boundaries em toda a árvore. Error tracking dedicado (Sentry ou similar) segue como 🟣 dependência externa opcional, deliberadamente não adicionada (ver RUNBOOK.md). |
 | 39 | Testes automatizados | ✅ | 1 | Primeira suíte (Vitest): lógica pura (permissões, validação, tokens, rate limit, gate de aprovação) + rotas de API com Supabase mockado (`tests/helpers/fake-supabase.ts`) — isolamento multi-tenant, bloqueio de operação sem permissão via chamada direta à API, fluxo de aprovação pública (token válido/inválido/expirado). Cobertura cresce nas fases seguintes, não é exaustiva ainda. |
-| 40 | Preparação para produção | 🟡 | 10 | Build/lint/testes limpos. Falta CI, validação de env no boot, error boundaries, backups. |
+| 40 | Preparação para produção | ✅ | 10 | Build/lint/testes limpos, CI, validação de env no boot, error boundaries, RUNBOOK.md (backup/incidentes). |
 
 ---
 
@@ -614,18 +614,55 @@ qualquer role de organização, mesmo admin.
 
 ---
 
-## Fase 10 — Preparação para produção
+## Fase 10 — Preparação para produção ✅ CONCLUÍDA
 
-**Funcionalidades**: #40 (fecha o que ficou como 🟡 na Fase 1/38/39).
+**Entregue**: CI no GitHub Actions, validação de env vars no boot,
+error boundaries em toda a árvore, README atualizado pra refletir o
+produto completo (estava descrevendo só a Fase 0/1), e um `RUNBOOK.md`
+novo com checklist de produção, backup e runbook de incidentes.
 
-**Escopo**: CI (lint + build + testes em PR), validação de env vars no
-boot (falhar cedo se faltar uma obrigatória), error boundaries em toda a
-árvore, dashboards de observabilidade (se não entrou na Fase 1), política
-de backup do Supabase, runbook de incidentes, revisão de segurança final
-(headers, RLS, secrets).
+**Funcionalidades**: #40 ✅ (fecha o que ficou como 🟡 na Fase 1/38/39).
 
-**Conclusão**: checklist de produção 100% verde antes de abrir para
-clientes pagantes de verdade.
+**Entregue em detalhe**:
+- **CI**: `.github/workflows/ci.yml` — lint, testes e build em todo
+  push/PR pra `main`.
+- **Validação de env vars no boot**: `src/instrumentation.ts` (hook
+  `register()` do Next.js, roda uma vez quando o servidor sobe) chama
+  `src/lib/env.ts` → `validateEnv()`, que falha com mensagem clara se
+  faltar `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`/
+  `SUPABASE_SERVICE_ROLE_KEY`, ou se `CREDENTIALS_ENCRYPTION_KEY` estiver
+  num formato inválido. Integrações opcionais (Stripe, Resend, Anthropic,
+  Google Drive, Meta Ads…) continuam validadas na hora do uso — não
+  travam o boot, por serem 🟣 dependência externa opcional.
+- **Error boundaries**: `src/app/error.tsx` (qualquer erro não tratado
+  abaixo do layout raiz) e `src/app/global-error.tsx` (erro no próprio
+  layout raiz) — nenhum erro não tratado vira tela branca.
+- **Observabilidade**: erros de servidor continuam logados via
+  `console.error` estruturado (`serverError()`, desde a Fase 1), capturado
+  pela Vercel. Error tracking dedicado (Sentry ou similar) **não entrou**
+  — decisão registrada no `RUNBOOK.md`: exigiria uma dependência nova
+  (`@sentry/nextjs`) e DSN próprio sem necessidade comprovada ainda; fica
+  como próximo passo natural se o volume de erros em produção justificar.
+- **Backup**: não é algo que o código controla — é política do plano
+  Supabase contratado. `RUNBOOK.md` documenta o que checar (backup
+  automático ativo, PITR se disponível) e recomenda testar uma
+  restauração em staging antes de precisar de verdade.
+- **Runbook de incidentes**: `RUNBOOK.md` cobre publicação parada,
+  webhooks não entregues, erro 500 recorrente, RLS bloqueando algo
+  indevidamente, e suspeita de credencial vazada.
+- **Revisão de segurança final**: headers/CSP (Fase 1), RLS por tabela
+  (documentada em cada `sql/0XX_*.sql`), credenciais cifradas em repouso
+  (Fase 2+), tokens de agente/webhook só com hash salvo (Fase 7) — nenhuma
+  lacuna nova encontrada nesta revisão.
+- **Documentação**: `README.md` reescrito — a versão anterior ainda
+  descrevia só a Fase 0/1 (4 migrations, "ADMIN_EMAILS não é usado" —
+  desatualizado desde a Fase 9).
+
+**Conclusão**: checklist de produção verde — CI, validação de boot, error
+boundaries, documentação de operação e segurança revisada. Falta só
+credenciais reais de terceiros (ver relatório final de pendências) e a
+decisão de negócio de contratar error tracking dedicado, se/quando fizer
+sentido.
 
 ---
 
