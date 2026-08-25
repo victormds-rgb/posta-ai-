@@ -54,8 +54,8 @@ Cada capacidade tem um status:
 | 30 | Webhooks (saída) | ✅ | 7 | Assinados (HMAC-SHA256), com log de entrega e retry automático com backoff. |
 | 31 | API de agente | ✅ | 7 | Token bearer **por organização** (não um único token global — decisão registrada), `/api/agent/*`. |
 | 32 | IA para geração/discovery | ✅ | 8 | Sem raspagem automática (decisão de ToS) — referência colada manualmente. 🟣 pendente `ANTHROPIC_API_KEY`. |
-| 33 | Painel administrativo | ⚪ | 9 | Super-admin do sistema (todas as orgs). |
-| 34 | Auditoria/logs | 🟡 | 1 / 9 | `activity_log` é populado por mais rotas agora (permissões, aprovações); ainda falta uma **tela** de auditoria — fica natural junto do painel admin (Fase 9). |
+| 33 | Painel administrativo | ✅ | 9 | Super-admin por e-mail (`ADMIN_EMAILS`), `/admin` — todas as orgs, métricas, troca manual de plano. |
+| 34 | Auditoria/logs | ✅ | 1 / 9 | `activity_log` populado por praticamente toda ação de escrita; tela em `/admin/auditoria` (cross-tenant, só super-admin). |
 | 35 | Permissões granulares | ✅ | 1 | `members.custom_permissions` (override parcial sobre o padrão do role), com UI de edição em Equipe e enforcement no servidor em toda rota de escrita. |
 | 36 | Configurações | 🟡 | 1+ | Nome/cor/chave Upload-Post (chave nunca é reexibida depois de salva). Cada fase nova adiciona sua própria seção. |
 | 37 | Segurança | ✅ | 1 | RLS + headers (CSP, X-Frame-Options, HSTS, Referrer-Policy, Permissions-Policy) + rate limiting best-effort nas rotas públicas/sensíveis + validação de entrada com zod + erros 500 sem vazar detalhe interno + secret da Upload-Post nunca reenviado ao cliente. Falta pra uma versão "definitiva": CSP com nonce, rate limit num store externo (Fase 10). |
@@ -571,22 +571,46 @@ de verdade assim que `ANTHROPIC_API_KEY` for configurada.
 
 ---
 
-## Fase 9 — Painel administrativo (super-admin do sistema)
+## Fase 9 — Painel administrativo (super-admin do sistema) ✅ CONCLUÍDA
 
-**Funcionalidades**: #33.
+**Entregue**: `ADMIN_EMAILS` (existente desde a Fase 0, sem nenhuma rota
+que o consumisse) agora autoriza `/admin` — visão geral com métricas
+globais, lista/detalhe de todas as organizações com troca manual de
+plano, e um visualizador de auditoria cross-tenant.
 
-**Dependências**: faz mais sentido depois de billing (Fase 3) e analytics
-(Fase 6) existirem — senão não há o que mostrar no painel financeiro/uso.
+**Funcionalidades**: #33 ✅, e #34 (auditoria — tela) fecha aqui também,
+como já estava planejado no mapa de capacidades.
 
-**Banco**: nenhuma tabela nova — consulta as existentes sem RLS (via
-service role), com autorização por `ADMIN_EMAILS` (já usado no `.env`
-desde a Fase 0, mas ainda sem nenhuma rota que o consuma).
+**Dependências**: Fase 3 (billing) e Fase 6 (analytics) — usadas: MRR
+estimado por plano ativo, distribuição de organizações por plano.
 
-**Frontend/Backend**: `src/app/(admin)/*`, rotas `/api/admin/*` — todas
-exigindo checagem explícita de `ADMIN_EMAILS`, nunca role de org.
+**Alterações de banco**: nenhuma tabela nova — todas as consultas usam
+`createAdminSupabase()` (service role, ignora RLS de propósito, já que o
+super-admin precisa enxergar todas as orgs) com autorização por
+`src/lib/admin-auth.ts` → `requireSuperAdmin()`, que checa o e-mail do
+usuário logado contra `ADMIN_EMAILS` — **nunca** por role de organização
+(um admin de uma org não é super-admin do produto).
 
-**Conclusão**: super-admin vê todas as organizações, métricas globais,
-logs do sistema e consegue intervir (ex.: mudar plano manualmente).
+**Backend**: `/api/admin/{metrics,organizacoes (+ [id]),auditoria}` —
+toda rota chama `requireSuperAdmin()` primeiro e devolve 403 se o e-mail
+não estiver na lista, antes de tocar em qualquer dado de qualquer org.
+
+**Frontend**: `src/app/admin/*` (layout próprio, fora do grupo do
+dashboard normal — não depende de organização/membership pra existir,
+só de e-mail autorizado): visão geral (organizações, MRR, membros,
+clientes, conteúdos, distribuição por plano), lista/detalhe de
+organização (equipe, uso, botão de trocar plano manualmente — ex.:
+cortesia/suporte), auditoria (últimos 100 eventos de `activity_log` de
+todas as orgs).
+
+**Testes**: 403 consistente sem autorização em toda rota `/api/admin/*`,
+listagem cross-tenant só acessível a super-admin, troca de plano registra
+em `activity_log`, cálculo de métricas (MRR, distribuição por plano).
+
+**Conclusão**: super-admin (por e-mail, `ADMIN_EMAILS`) vê todas as
+organizações, métricas globais e o log de auditoria, e consegue intervir
+manualmente no plano de uma organização — tudo fora do alcance de
+qualquer role de organização, mesmo admin.
 
 ---
 
