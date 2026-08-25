@@ -113,4 +113,19 @@ describe('GET/PUT/DELETE /api/clientes/[id]/wordpress', () => {
     expect(res.status).toBe(200)
     expect(fakeSupabase.__store.client_wordpress_config).toHaveLength(0)
   })
+
+  it('aplica rate limit por organização — cada tentativa faz um fetch de verdade na URL informada', async () => {
+    wpTestConnectionMock.mockResolvedValue({ success: false, error: 'credenciais inválidas' })
+    currentContext = makeContext('admin')
+    const { PUT } = await import('../route')
+    let last429 = false
+    for (let i = 0; i < 11; i++) {
+      const res = await PUT(
+        new Request('http://x', { method: 'PUT', body: JSON.stringify({ site_url: 'https://x.com', username: 'a', app_password: 'b' }) }),
+        { params: Promise.resolve({ id: 'c1' }) },
+      )
+      last429 = res.status === 429
+    }
+    expect(last429).toBe(true)
+  })
 })

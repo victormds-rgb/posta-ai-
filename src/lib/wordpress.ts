@@ -1,4 +1,5 @@
 import 'server-only'
+import { assertPublicUrl } from '@/lib/url-safety'
 
 /**
  * Cliente para a REST API do WordPress do cliente final, autenticado via
@@ -18,6 +19,11 @@ function authHeader(username: string, appPassword: string): string {
 }
 
 async function request<T>(siteUrl: string, path: string, username: string, appPassword: string, init: RequestInit = {}): Promise<WpResult<T>> {
+  // site_url é escolhido pela agência/cliente — sem essa checagem, esta
+  // função vira uma forma de sondar a rede interna do servidor (SSRF).
+  const urlCheck = await assertPublicUrl(siteUrl)
+  if (!urlCheck.ok) return { success: false, error: urlCheck.reason }
+
   try {
     const base = siteUrl.replace(/\/+$/, '')
     const res = await fetch(`${base}/wp-json/wp/v2${path}`, {

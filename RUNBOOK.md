@@ -8,7 +8,9 @@ ainda depende de credencial externa).
 ## Checklist antes de abrir para clientes pagantes
 
 - [ ] Todas as migrations de `sql/` rodadas em ordem no projeto Supabase de
-      produção (não o de desenvolvimento).
+      produção (não o de desenvolvimento) — confirme com
+      `select version from schema_migrations order by version;`
+      (tabela criada em `013_schema_migrations.sql`).
 - [ ] `.env` de produção preenchido com as variáveis **obrigatórias**
       (Supabase, `ADMIN_EMAILS`, `CRON_SECRET`, `CREDENTIALS_ENCRYPTION_KEY`
       — gerada com `openssl rand -hex 32`, **nunca reaproveitada** de
@@ -105,6 +107,11 @@ infraestrutura do Supabase (não do plano de backup do Postgres).
 
 ## Observabilidade
 
+- `GET /api/health` — health check público (sem auth), pra apontar um
+  monitor de uptime (UptimeRobot, o healthcheck da própria plataforma de
+  deploy, etc.). Confirma só que o processo está de pé e que o Supabase
+  responde (`{status:"ok"}` / 200 ou `{status:"degraded"}` / 503) — não
+  devolve nenhum dado de tenant.
 - Erros de servidor: `console.error` estruturado (`[contexto] erro`),
   capturado pelos logs da Vercel. Não há error tracking dedicado (Sentry
   ou similar) integrado ainda — é uma dependência externa opcional

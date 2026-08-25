@@ -2,6 +2,7 @@ import 'server-only'
 import crypto from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { decryptSecret } from '@/lib/crypto'
+import { assertPublicUrl } from '@/lib/url-safety'
 import type { WebhookEventType } from '@/lib/types'
 
 const MAX_ATTEMPTS = 5
@@ -18,7 +19,15 @@ function backoffMinutes(attempt: number): number {
   return table[Math.min(attempt, table.length - 1)]
 }
 
-async function deliver(url: string, secret: string, eventType: string, payload: Record<string, unknown>) {
+/**
+ * Entrega o payload assinado numa URL de webhook — exportada pra ser
+ * reaproveitada pelo botão "testar" (ping), que precisa exatamente da mesma
+ * lógica (inclusive a checagem de SSRF), não uma cópia dela.
+ */
+export async function deliver(url: string, secret: string, eventType: string, payload: Record<string, unknown>) {
+  const urlCheck = await assertPublicUrl(url)
+  if (!urlCheck.ok) return { ok: false as const, error: urlCheck.reason }
+
   const body = JSON.stringify({ event: eventType, data: payload, sent_at: new Date().toISOString() })
   const signature = signWebhookPayload(secret, body)
   try {

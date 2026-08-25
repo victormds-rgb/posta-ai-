@@ -6,6 +6,7 @@ import { can } from '@/lib/permissions'
 import { parseBody, wordpressConnectSchema } from '@/lib/validation'
 import { encryptSecret } from '@/lib/crypto'
 import { wpTestConnection } from '@/lib/wordpress'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 import type { ClientWordPressConfig } from '@/lib/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -34,6 +35,12 @@ export async function PUT(request: Request, { params }: Params) {
   if (!can(ctx.member, 'manageIntegrations')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
+
+  // Cada tentativa faz um fetch de verdade na URL informada — sem limite,
+  // vira uma ferramenta de varredura de rede interna (SSRF), mesmo com a
+  // proteção de assertPublicUrl já bloqueando os alvos óbvios.
+  const limit = rateLimit(`wordpress:connect:${ctx.organization.id}`, 10, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
 
   const { id: clientId } = await params
   const { data: body, error: validationError } = await parseBody(request, wordpressConnectSchema)

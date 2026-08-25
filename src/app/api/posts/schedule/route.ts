@@ -4,6 +4,7 @@ import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
 import { assertContentIsPublishable } from '@/lib/approvals'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 
 /**
  * Agendamento "local": grava scheduled_at + status='agendado'. Um cron
@@ -16,6 +17,9 @@ export async function POST(request: Request) {
   if (!can(ctx.member, 'publish')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
+
+  const limit = rateLimit(`posts:schedule:${ctx.organization.id}`, 60, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
 
   const body = await request.json().catch(() => ({}))
   const contentId: string | undefined = body?.content_id

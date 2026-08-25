@@ -36,7 +36,12 @@ deploy), ver [`RUNBOOK.md`](./RUNBOOK.md).
 1. Crie um projeto em [supabase.com](https://supabase.com).
 2. Abra o **SQL Editor** e rode, **em ordem**, todos os arquivos de `sql/`
    (`001_init.sql` até o número mais alto disponível) — cada um é uma
-   migration incremental, nunca reescreve o schema anterior.
+   migration incremental, nunca reescreve o schema anterior. A partir de
+   `013_schema_migrations.sql`, a tabela `schema_migrations` registra quais
+   já rodaram nesse projeto — confira com
+   `select version from schema_migrations order by version;` antes de
+   aplicar mais alguma, e termine toda migration nova com
+   `insert into schema_migrations (version) values ('0NN_nome') on conflict (version) do nothing;`.
 3. (Opcional) Em **Authentication → Providers → Google**, configure o
    Client ID/Secret para permitir login com Google.
 

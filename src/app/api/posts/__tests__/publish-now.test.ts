@@ -121,4 +121,14 @@ describe('POST /api/posts/publish-now', () => {
     expect(res.status).toBe(403)
     expect(publishPostMock).not.toHaveBeenCalled()
   })
+
+  it('aplica rate limit por organização — publicar chama uma API paga a cada request', async () => {
+    const { POST } = await import('../publish-now/route')
+    let last429 = false
+    for (let i = 0; i < 31; i++) {
+      const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ content_id: 'inexistente' }) }))
+      last429 = res.status === 429
+    }
+    expect(last429).toBe(true)
+  })
 })

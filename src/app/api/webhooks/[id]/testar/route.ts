@@ -3,7 +3,8 @@ import { getCurrentContext } from '@/lib/org'
 import { createServerSupabase } from '@/lib/supabase/server'
 import { can } from '@/lib/permissions'
 import { decryptSecret } from '@/lib/crypto'
-import { signWebhookPayload } from '@/lib/webhook-dispatch'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
+import { deliver } from '@/lib/webhook-dispatch'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,23 +16,18 @@ export async function POST(_request: Request, { params }: Params) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
 
+  // Cada teste faz um fetch de verdade pra uma URL escolhida pelo usuário —
+  // sem limite, isso vira uma ferramenta de varredura de rede interna.
+  const limit = rateLimit(`webhooks:testar:${ctx.organization.id}`, 10, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
+
   const { id } = await params
   const supabase = await createServerSupabase()
   const { data: config } = await supabase.from('webhook_configs').select('*').eq('id', id).eq('org_id', ctx.organization.id).maybeSingle()
   if (!config) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  const body = JSON.stringify({ event: 'ping', data: { message: 'Teste do Posta AI' }, sent_at: new Date().toISOString() })
-  const signature = signWebhookPayload(decryptSecret(config.secret), body)
-
-  try {
-    const res = await fetch(config.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Posta-Event': 'ping', 'X-Posta-Signature': `sha256=${signature}` },
-      body,
-      signal: AbortSignal.timeout(10_000),
-    })
-    return NextResponse.json({ success: res.ok, status: res.status })
-  } catch (err) {
-    return NextResponse.json({ success: false, error: err instanceof Error ? err.message : 'Falha de rede' })
-  }
+  // Reaproveita a mesma entrega (assinatura + checagem de SSRF) usada pelos
+  // eventos reais — não uma cópia da lógica.
+  const result = await deliver(config.url, decryptSecret(config.secret), 'ping', { message: 'Teste do Posta AI' })
+  return NextResponse.json({ success: result.ok, error: result.ok ? undefined : result.error })
 }

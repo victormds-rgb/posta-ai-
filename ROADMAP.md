@@ -666,6 +666,82 @@ sentido.
 
 ---
 
+## Fase 11 — Auditoria de prontidão e correções de segurança ✅ CONCLUÍDA
+
+Uma auditoria completa de prontidão pra produção (18 seções: IDOR/BOLA
+multi-tenant, autorização, credenciais, webhooks, SSRF, rate limit,
+migrations, backup, integrações, testes, checklist final) encontrou 4
+achados de segurança reais e uma lacuna operacional; todos corrigidos
+nesta fase, do mais crítico pro menos crítico.
+
+**P0 — corrigidos**:
+- **Vazamento de credencial no painel admin**: `GET/PATCH
+  /api/admin/organizacoes*` e `/api/admin/metrics` usavam `select('*')`
+  em `organizations`, expondo `upload_post_api_key` em texto puro (a
+  única credencial da tabela que nunca foi migrada pra `encryptSecret`,
+  desde a Fase 0) pra qualquer super-admin que abrisse o DevTools.
+  Corrigido com `select()` de colunas explícitas nas 3 rotas.
+- **Vazamento de aprovação interna no Portal**: `GET
+  /api/conteudos/[id]/internal-approval` não checava
+  `assertPortalClientAccess` — um membro `role: cliente` linkado ao
+  Cliente A conseguia ver o status de aprovação interna de conteúdo do
+  Cliente B, na mesma organização. Corrigido com a mesma checagem já
+  usada em todo o resto do Portal.
+- **RLS ausente em `stripe_webhook_events`**: única tabela das 30 sem
+  `enable row level security` — corrigido em `sql/012_security_fixes.sql`
+  (**precisa ser aplicado manualmente no Supabase de produção**, não
+  roda sozinho).
+
+**P1 — corrigido**: rota de arquivos do acervo
+(`/api/clientes/[id]/acervo/pastas/[folderId]/arquivos`) não confirmava
+que `folderId` pertencia ao `clientId` da URL — um usuário do Portal
+linkado a um cliente conseguia listar arquivos de uma pasta de outro
+cliente da mesma org sabendo (ou adivinhando) o UUID da pasta.
+
+**P2 — corrigidos**:
+- **Proteção SSRF**: novo `src/lib/url-safety.ts`
+  (`assertPublicUrl()`) resolve o hostname via DNS e rejeita qualquer IP
+  privado/reservado/loopback/link-local (inclusive o range de metadata
+  de nuvem, `169.254.169.254`), em IPv4 e IPv6. Aplicado nos dois pontos
+  que aceitam URL controlada pelo usuário: webhooks de saída
+  (`src/lib/webhook-dispatch.ts`, reaproveitado também pelo botão
+  "testar webhook") e conexão de WordPress (`src/lib/wordpress.ts`).
+  Limitação documentada: não cobre DNS rebinding (a checagem é no
+  momento da resolução, não da conexão).
+- **Rate limit em rotas sem proteção**: `publish-now` (30/5min por org —
+  cada chamada publica de verdade numa rede social), `schedule` (60/5min)
+  e conexão de WordPress (10/5min — cada tentativa faz um fetch real na
+  URL informada, mesmo com `assertPublicUrl` barrando os alvos óbvios).
+
+**Lacuna operacional corrigida**: não havia registro de quais migrations
+de `sql/` já tinham rodado num projeto Supabase específico — só a
+convenção "roda em ordem, manualmente". `sql/013_schema_migrations.sql`
+cria uma tabela `schema_migrations` (só service role, sem policy pra
+anon/authenticated) e faz backfill das 001-012; toda migration nova deve
+terminar com um `insert` nela (documentado no `README.md`).
+
+**P3 — corrigido**: `GET /api/health` — health check público (sem auth)
+pra monitor de uptime, confirma só que o processo e o Supabase respondem,
+sem vazar dado de tenant.
+
+**Não corrigido nesta fase (fora de escopo, precisa decisão externa)**:
+- Rate limit continua em memória por instância (não é globalmente
+  consistente entre múltiplas instâncias serverless) — corrigir de
+  verdade exige um contador compartilhado (Redis/Upstash), uma
+  dependência nova deliberadamente não adicionada sem necessidade
+  comprovada, mesma decisão já registrada pra error tracking na Fase 10.
+- Confirmação de backup automático ativo no projeto Supabase de produção
+  — é configuração do plano contratado, não algo que o código controla;
+  ver checklist em `RUNBOOK.md`.
+
+**Regressão**: 229 testes (era 206 antes desta fase), lint e build
+limpos. `tests/helpers/fake-supabase.ts` ganhou projeção real de colunas
+em `select()` durante a Fase 11 — antes ignorava o argumento e sempre
+devolvia a linha inteira, o que é exatamente por que o vazamento de
+`upload_post_api_key` nunca quebrou nenhum teste.
+
+---
+
 ## Ordem recomendada e por quê
 
 ```

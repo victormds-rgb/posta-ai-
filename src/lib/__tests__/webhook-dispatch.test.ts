@@ -5,6 +5,13 @@ import { createFakeSupabase } from '@tests/helpers/fake-supabase'
 import { encryptSecret } from '@/lib/crypto'
 import { dispatchWebhookEvent, retryFailedWebhookEvents, signWebhookPayload } from '@/lib/webhook-dispatch'
 
+// Evita depender de resolução DNS real durante os testes — as URLs usadas
+// abaixo (https://x.com/...) são só exemplos, não precisam resolver de
+// verdade pra validar a lógica de entrega/retry.
+vi.mock('node:dns/promises', () => ({
+  lookup: vi.fn(async () => [{ address: '203.0.113.10', family: 4 }]),
+}))
+
 describe('signWebhookPayload', () => {
   it('gera assinaturas diferentes pra secrets diferentes', () => {
     const a = signWebhookPayload('secret-a', '{"x":1}')

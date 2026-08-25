@@ -6,6 +6,7 @@ import { getOrgUploadPostKey } from '@/lib/org-upload-post'
 import { can } from '@/lib/permissions'
 import { assertContentIsPublishable } from '@/lib/approvals'
 import { dispatchWebhookEvent } from '@/lib/webhook-dispatch'
+import { rateLimit, rateLimitedResponse } from '@/lib/rate-limit'
 import type { ClientSocialProfile, ContentItem } from '@/lib/types'
 
 export async function POST(request: Request) {
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
   if (!can(ctx.member, 'publish')) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   }
+
+  // Cada chamada bem-sucedida publica de verdade numa rede social — sem
+  // limite, um script vira uma forma de estourar o uso da Upload-Post.
+  const limit = rateLimit(`posts:publish-now:${ctx.organization.id}`, 30, 5 * 60_000)
+  if (!limit.ok) return rateLimitedResponse(limit.retryAfterSeconds)
 
   const apiKey = getOrgUploadPostKey(ctx.organization)
   if (!apiKey) {
