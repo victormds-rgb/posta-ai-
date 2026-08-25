@@ -161,6 +161,67 @@ export interface MediaFile {
   created_at: string
 }
 
+export type CampaignStatus = 'planejada' | 'em_andamento' | 'concluida' | 'cancelada'
+
+/** Campanha — agrupa conteúdos de um cliente num período. */
+export interface Campaign {
+  id: string
+  org_id: string
+  client_id: string
+  name: string
+  description: string | null
+  color: string | null
+  start_date: string | null
+  end_date: string | null
+  status: CampaignStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Vínculo N:N entre campanha e conteúdo. */
+export interface CampaignContentItem {
+  id: string
+  campaign_id: string
+  content_item_id: string
+  created_at: string
+}
+
+export type TaskStatus = 'pendente' | 'em_andamento' | 'concluida'
+
+export interface TaskChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+/** Tarefa — dono, prazo, checklist e status. Pode estar ligada a um cliente/campanha/conteúdo. */
+export interface Task {
+  id: string
+  org_id: string
+  client_id: string | null
+  campaign_id: string | null
+  content_item_id: string | null
+  title: string
+  description: string | null
+  status: TaskStatus
+  due_date: string | null
+  assigned_to: string | null
+  checklist: TaskChecklistItem[]
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskComment {
+  id: string
+  org_id: string
+  task_id: string
+  user_id: string | null
+  body: string
+  created_at: string
+}
+
 export interface ClientSocialProfile {
   id: string
   org_id: string

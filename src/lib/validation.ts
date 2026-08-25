@@ -98,6 +98,46 @@ export const clientPortalAccessSchema = z.object({
   client_ids: z.array(z.string().uuid()).max(100),
 })
 
+export const campaignCreateSchema = z.object({
+  client_id: z.string().uuid('client_id inválido'),
+  name: z.string().trim().min(1, 'Nome é obrigatório').max(255),
+  description: z.string().trim().max(5000).optional(),
+  color: z.string().trim().max(20).optional(),
+  start_date: z.string().trim().max(10).optional().nullable(),
+  end_date: z.string().trim().max(10).optional().nullable(),
+  status: z.enum(['planejada', 'em_andamento', 'concluida', 'cancelada']).optional(),
+})
+
+export const campaignUpdateSchema = campaignCreateSchema.partial().omit({ client_id: true })
+
+export const campaignLinkContentSchema = z.object({
+  content_item_id: z.string().uuid(),
+})
+
+const taskChecklistItemSchema = z.object({
+  id: z.string().max(64),
+  text: z.string().trim().min(1).max(500),
+  done: z.boolean(),
+})
+
+export const taskCreateSchema = z.object({
+  title: z.string().trim().min(1, 'Título é obrigatório').max(500),
+  description: z.string().trim().max(5000).optional(),
+  client_id: z.string().uuid().optional().nullable(),
+  campaign_id: z.string().uuid().optional().nullable(),
+  content_item_id: z.string().uuid().optional().nullable(),
+  status: z.enum(['pendente', 'em_andamento', 'concluida']).optional(),
+  due_date: z.string().trim().max(10).optional().nullable(),
+  assigned_to: z.string().uuid().optional().nullable(),
+  checklist: z.array(taskChecklistItemSchema).max(100).optional(),
+})
+
+export const taskUpdateSchema = taskCreateSchema.partial()
+
+export const taskCommentSchema = z.object({
+  body: z.string().trim().min(1, 'Comentário vazio').max(5000),
+})
+
 export const contentCreateSchema = z.object({
   client_id: z.string().uuid('client_id inválido'),
   title: z.string().trim().max(500).optional(),

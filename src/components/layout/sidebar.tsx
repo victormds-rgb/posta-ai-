@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Users, CalendarDays, UsersRound, Settings, Rocket } from 'lucide-react'
+import { Users, CalendarDays, UsersRound, Settings, Rocket, Megaphone, ListTodo } from 'lucide-react'
 import type { RolePermissions } from '@/lib/types'
 
 const NAV: { href: string; label: string; icon: typeof Users; requires?: keyof RolePermissions }[] = [
   { href: '/clientes', label: 'Clientes', icon: Users },
+  { href: '/campanhas', label: 'Campanhas', icon: Megaphone },
+  { href: '/tarefas', label: 'Tarefas', icon: ListTodo },
   { href: '/calendario', label: 'Calendário', icon: CalendarDays },
   { href: '/equipe', label: 'Equipe', icon: UsersRound },
   { href: '/configuracoes', label: 'Configurações', icon: Settings, requires: 'manageSettings' },

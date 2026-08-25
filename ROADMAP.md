@@ -44,9 +44,9 @@ Cada capacidade tem um status:
 | 20 | Subdomínios | 🔴 | 4 | Não implementado — depende de domínio de produção definitivo (DNS + cert wildcard), decisão de infraestrutura fora do código. Portal por path (`/portal`) cobre a mesma necessidade funcional por ora. |
 | 21 | Acervo digital | ✅ | 4 | Pastas de mídia por cliente, upload, exclusão, link público opcional sem login (`/acervo/[token]`). |
 | 22 | Brand Book | ✅ | 4 | Cores, fontes, logo e diretrizes por cliente; editável pela agência, visível pro cliente no Portal. |
-| 23 | Planejamento anual | ⚪ | 5 | — |
-| 24 | Campanhas | ⚪ | 5 | — |
-| 25 | Tarefas | ⚪ | 5 | — |
+| 23 | Planejamento anual | ✅ | 5 | Via campanhas com período (início/fim) + calendário — sem grade visual anual dedicada. |
+| 24 | Campanhas | ✅ | 5 | Agrupam conteúdos de um cliente, com status e progresso (X/Y publicados). |
+| 25 | Tarefas | ✅ | 5 | Responsável, prazo, checklist e comentários. |
 | 26 | Analytics | ⚪ | 6 | Métricas de posts publicados. |
 | 27 | Meta Ads | ⚪ | 6 | 🟣 requer app revisado pela Meta. |
 | 28 | Blog/WordPress | ⚪ | 6 | 🟣 requer site WordPress por cliente. |
@@ -336,21 +336,52 @@ infraestrutura, não de código.
 
 ---
 
-## Fase 5 — Planejamento e produtividade interna
+## Fase 5 — Planejamento e produtividade interna ✅ CONCLUÍDA
 
-**Funcionalidades**: #23 (planejamento anual), #24 (campanhas), #25
-(tarefas). Módulos internos da agência, sem integração externa — podem ser
-paralelizados entre si. **Dependência**: Fase 0 (clientes/conteúdo) apenas.
+**Entregue**: Campanhas (`/campanhas`, `/campanhas/[id]`) agrupando
+conteúdos de um cliente por período, com status e progresso (X/Y
+publicados); Tarefas (`/tarefas`) com responsável, prazo, checklist e
+comentários; campanhas ativas visíveis no Calendário.
 
-**Banco**: `campaigns`, `campaign_content_items` (N:N com `content_items`),
-`tasks`, `task_comments`.
+**Funcionalidades**: #23 (planejamento anual — via campanhas + calendário)
+✅, #24 (campanhas) ✅, #25 (tarefas) ✅. Módulos internos da agência, sem
+integração externa. **Dependência**: Fase 0 (clientes/conteúdo) apenas —
+usada.
 
-**Frontend/Backend**: CRUD padrão nos mesmos moldes de `clientes`/
-`content_items` já existentes — menor risco técnico do roadmap.
+**Alterações de banco** (`sql/008_planning.sql`): `campaigns` (por
+cliente, status, período), `campaign_content_items` (N:N com
+`content_items`, `unique(campaign_id, content_item_id)`), `tasks`
+(checklist como `jsonb` embutido — sem tabela própria, menor risco técnico
+pra um checklist curto por tarefa), `task_comments`. RLS: mesmo padrão de
+`content_items` — toda a organização (não escopado por `client_members`;
+campanhas/tarefas são módulo interno da agência, o role `cliente` nem
+enxerga estas rotas).
+
+**Decisão de arquitetura registrada**: campanhas e tarefas reaproveitam a
+permissão `manageContent` já existente (em vez de criar novas chaves em
+`RolePermissions`, o que exigiria migrar `members.custom_permissions` e
+tocar em toda a suíte de testes de permissões da Fase 1) — a chave já
+cobre exatamente quem deveria poder planejar/organizar conteúdo.
+
+**Backend**: `/api/campanhas` (+ `[id]`, `+/conteudos` pra vincular/
+desvincular conteúdo — valida que é do mesmo cliente da campanha),
+`/api/tarefas` (+ `[id]`, `+/comentarios`).
+
+**Frontend**: `/campanhas` (lista + criação), `/campanhas/[id]` (detalhe,
+progresso, vincular/desvincular conteúdo, mudar status), `/tarefas`
+(lista com filtro por status, modal de criação/edição com checklist e
+comentários), seção "Campanhas ativas" no Calendário.
+
+**Testes**: isolamento por organização, vínculo campanha↔conteúdo restrito
+ao mesmo cliente, checklist/comentários de tarefa, bloqueio do role
+`cliente` (módulo interno).
 
 **Conclusão**: campanha agrupa conteúdos e mostra progresso; tarefa tem
-dono, prazo, checklist e status; timeline anual visualiza campanhas no
-calendário.
+dono, prazo, checklist e status; campanhas aparecem no calendário. Uma
+grade visual de calendário anual completa (dia-a-dia, mês a mês) não
+entrou nesta fase — a lista de campanhas ativas + calendário de conteúdo
+agendado já existente cobrem a necessidade funcional; fica como polimento
+futuro, não como lacuna funcional.
 
 ---
 
