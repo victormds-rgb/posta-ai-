@@ -24,7 +24,7 @@ create table if not exists org_whatsapp_config (
   phone text,
   status varchar(20) not null default 'disconnected'
     check (status in ('disconnected', 'connecting', 'connected', 'error')),
-  webhook_secret varchar(64) not null default encode(gen_random_bytes(24), 'hex'),
+  webhook_secret varchar(64) not null default encode(extensions.gen_random_bytes(24), 'hex'),
   last_error text,
   connected_at timestamptz,
   created_at timestamptz not null default now(),

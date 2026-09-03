@@ -189,10 +189,16 @@ export function createFakeSupabase(initial: Store = {}) {
   }
 
   return {
-    from,
-    /** Acesso direto aos dados fabricados, pra montar fixtures ou inspecionar depois de uma rota rodar. */
-    __store: store,
+      from,
+      /** Acesso direto aos dados fabricados, pra montar fixtures ou inspecionar depois de uma rota rodar. */
+      __store: store,
+      /** Mock mínimo de auth para testes que chamam getCurrentContext/getAgentOrgId. */
+      auth: {
+        getUser() {
+          return Promise.resolve({ data: { user: null }, error: null })
+        },
+      },
+    }
   }
-}
 
 export type FakeSupabase = ReturnType<typeof createFakeSupabase>

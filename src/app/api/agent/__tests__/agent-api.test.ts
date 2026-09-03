@@ -8,9 +8,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerSupabase: vi.fn(async () => fakeSupabase),
 }))
 
-let mockOrgId: string | null = null
+const { mockOrgId } = vi.hoisted(() => ({ mockOrgId: { current: null as string | null } }))
+
 vi.mock('@/lib/agent-auth', () => ({
-  getAgentOrgId: vi.fn(async () => mockOrgId),
+  getAgentOrgId: vi.fn(async () => mockOrgId.current),
   generateAgentToken: vi.fn(),
 }))
 
@@ -22,7 +23,7 @@ describe('GET /api/agent/clientes', () => {
       { id: 'c1', org_id: 'org-1', name: 'Cliente A', slug: 'a', created_at: '2026-01-01' },
       { id: 'c2', org_id: 'org-OUTRA', name: 'De outra org', slug: 'b', created_at: '2026-01-01' },
     ]
-    mockOrgId = null
+    mockOrgId.current = null
   })
 
   it('401 sem token válido', async () => {
@@ -32,7 +33,7 @@ describe('GET /api/agent/clientes', () => {
   })
 
   it('lista só os clientes da organização dona do token', async () => {
-    mockOrgId = 'org-1'
+    mockOrgId.current = 'org-1'
     const { GET } = await import('../clientes/route')
     const res = await GET(new Request('http://x'))
     expect(res.status).toBe(200)
@@ -48,11 +49,11 @@ describe('GET/POST /api/agent/conteudos', () => {
     fakeSupabase.__store.content_items = []
     fakeSupabase.__store.organizations = [{ id: 'org-1', plan: 'free', name: 'Org', created_at: '2026-01-01' }]
     fakeSupabase.__store.webhook_configs = []
-    mockOrgId = 'org-1'
+    mockOrgId.current = 'org-1'
   })
 
   it('401 sem token', async () => {
-    mockOrgId = null
+    mockOrgId.current = null
     const { GET } = await import('../conteudos/route')
     const res = await GET(new Request('http://x'))
     expect(res.status).toBe(401)
@@ -84,7 +85,7 @@ describe('PATCH /api/agent/conteudos/[id]', () => {
       { id: 'ct1', org_id: 'org-1', client_id: CLIENT_UUID, title: 'A', status: 'ideia', media_urls: [], channels: [], created_at: '2026-01-01' },
     ]
     fakeSupabase.__store.webhook_configs = []
-    mockOrgId = 'org-1'
+    mockOrgId.current = 'org-1'
   })
 
   it('atualiza o status e retorna o conteúdo', async () => {
@@ -98,7 +99,7 @@ describe('PATCH /api/agent/conteudos/[id]', () => {
   })
 
   it('404 pra conteúdo de outra organização', async () => {
-    mockOrgId = 'org-OUTRA'
+    mockOrgId.current = 'org-OUTRA'
     const { PATCH } = await import('../conteudos/[id]/route')
     const res = await PATCH(new Request('http://x', { method: 'PATCH', body: JSON.stringify({ status: 'producao' }) }), {
       params: Promise.resolve({ id: 'ct1' }),

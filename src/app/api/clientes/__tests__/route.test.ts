@@ -10,10 +10,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminSupabase: vi.fn(() => fakeSupabase),
 }))
 
-let currentContext: Awaited<ReturnType<typeof import('@/lib/org').getCurrentContext>> | null = null
+const { currentContext } = vi.hoisted(() => ({ currentContext: { current: null as Awaited<ReturnType<typeof import('@/lib/org').getCurrentContext>> | null } }))
 
 vi.mock('@/lib/org', () => ({
-  getCurrentContext: vi.fn(async () => currentContext),
+  getCurrentContext: vi.fn(async () => currentContext.current),
 }))
 
 function makeContext(role: Member['role']) {
@@ -52,7 +52,7 @@ describe('POST /api/clientes', () => {
   beforeEach(() => {
     fakeSupabase.__store.clients = []
     fakeSupabase.__store.client_members = []
-    currentContext = null
+    currentContext.current = null
   })
 
   it('retorna 401 sem sessão', async () => {
@@ -62,21 +62,21 @@ describe('POST /api/clientes', () => {
   })
 
   it('retorna 403 pra quem não tem manageClients (ex.: designer)', async () => {
-    currentContext = makeContext('designer')
+    currentContext.current = makeContext('designer')
     const { POST } = await import('../route')
     const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'Cliente X' }) }))
     expect(res.status).toBe(403)
   })
 
   it('retorna 400 com payload inválido (nome vazio)', async () => {
-    currentContext = makeContext('admin')
+    currentContext.current = makeContext('admin')
     const { POST } = await import('../route')
     const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: '' }) }))
     expect(res.status).toBe(400)
   })
 
   it('cria o cliente pra quem tem manageClients (admin) e devolve slug único', async () => {
-    currentContext = makeContext('admin')
+    currentContext.current = makeContext('admin')
     const { POST } = await import('../route')
     const res = await POST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'Padaria do Zé' }) }))
     expect(res.status).toBe(201)
@@ -91,7 +91,7 @@ describe('POST /api/clientes', () => {
       { id: 'c1', org_id: 'org-1', name: 'Cliente da org 1', slug: 'cliente-org-1', created_at: '2026-01-01' },
       { id: 'c2', org_id: 'org-OUTRA', name: 'Cliente de outra org', slug: 'cliente-outra', created_at: '2026-01-01' },
     ]
-    currentContext = makeContext('admin')
+    currentContext.current = makeContext('admin')
     const { GET } = await import('../route')
     const res = await GET()
     const body = await res.json()
@@ -105,7 +105,7 @@ describe('POST /api/clientes', () => {
       { id: 'c2', org_id: 'org-1', name: 'Cliente NÃO vinculado', slug: 'nao-vinculado', created_at: '2026-01-01' },
     ]
     fakeSupabase.__store.client_members = [{ id: 'cm1', member_id: 'member-1', client_id: 'c1', created_at: '2026-01-01' }]
-    currentContext = makeContext('cliente')
+    currentContext.current = makeContext('cliente')
     const { GET } = await import('../route')
     const res = await GET()
     const body = await res.json()
@@ -116,7 +116,7 @@ describe('POST /api/clientes', () => {
   it('membro role=cliente sem nenhum vínculo não vê nenhum cliente', async () => {
     fakeSupabase.__store.clients = [{ id: 'c1', org_id: 'org-1', name: 'Cliente', slug: 'cliente', created_at: '2026-01-01' }]
     fakeSupabase.__store.client_members = []
-    currentContext = makeContext('cliente')
+    currentContext.current = makeContext('cliente')
     const { GET } = await import('../route')
     const res = await GET()
     const body = await res.json()

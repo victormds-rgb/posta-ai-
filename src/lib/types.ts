@@ -10,6 +10,7 @@ export type ContentStatus =
   | 'aprovacao_interna'
   | 'aprovacao_cliente'
   | 'agendado'
+  | 'processando'
   | 'publicado'
 export type ApprovalStatus = 'pendente' | 'aprovado' | 'ajuste'
 
@@ -252,6 +253,12 @@ export interface ContentItem {
   assigned_to: string | null
   created_at: string
   updated_at: string
+  // Scheduler fields (migration 014)
+  processing_started_at: string | null
+  processing_run_id: string | null
+  attempts: number
+  last_error: string | null
+  next_retry_at: string | null
   // joined
   client?: Client
   assignee?: Member

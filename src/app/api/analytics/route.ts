@@ -32,13 +32,14 @@ export async function GET() {
   const clients = (clientsData ?? []) as Client[]
 
   const byStatus: Record<ContentStatus, number> = {
-    ideia: 0,
-    producao: 0,
-    aprovacao_interna: 0,
-    aprovacao_cliente: 0,
-    agendado: 0,
-    publicado: 0,
-  }
+      ideia: 0,
+      producao: 0,
+      aprovacao_interna: 0,
+      aprovacao_cliente: 0,
+      agendado: 0,
+      processando: 0,
+      publicado: 0,
+    }
   for (const item of items) byStatus[item.status]++
 
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000

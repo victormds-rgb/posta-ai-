@@ -11,6 +11,7 @@ const STATUS_LABELS: Record<ContentStatus, string> = {
   aprovacao_interna: 'Aprovação interna',
   aprovacao_cliente: 'Aprovação do cliente',
   agendado: 'Agendado',
+  processando: 'Processando',
   publicado: 'Publicado',
 }
 
