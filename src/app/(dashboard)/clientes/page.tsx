@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Building2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Building2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -11,18 +12,32 @@ import { usePermissions } from '@/hooks/use-permissions'
 import type { Client } from '@/lib/types'
 
 export default function ClientesPage() {
+  const router = useRouter()
   const [clients, setClients] = useState<Client[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const { permissions } = usePermissions()
   const canManageClients = permissions?.manageClients ?? false
 
   const load = useCallback(async () => {
-    const res = await fetch('/api/clientes')
-    if (res.ok) {
-      const data = await res.json()
-      setClients(data.clients)
+    setError(null)
+    try {
+      const res = await fetch('/api/clientes')
+      if (res.ok) {
+        const data = await res.json()
+        setClients(data.clients)
+      } else if (res.status === 401) {
+        // Sessão expirada ou inválida — redireciona para login preservando o destino
+        router.push('/login?redirect=/clientes')
+      } else if (res.status === 403) {
+        setError('Você não tem permissão para ver clientes.')
+      } else {
+        setError(`Falha ao carregar clientes (${res.status})`)
+      }
+    } catch {
+      setError('Erro de rede. Verifique sua conexão e tente novamente.')
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial via API
@@ -44,9 +59,18 @@ export default function ClientesPage() {
         )}
       </div>
 
-      {clients === null ? (
+      {clients === null && !error ? (
         <p className="text-sm text-muted">Carregando…</p>
-      ) : clients.length === 0 ? (
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <AlertCircle className="size-10 text-danger" />
+          <p className="text-danger max-w-sm">{error}</p>
+          <Button variant="secondary" onClick={load}>
+            <RefreshCw className="size-4 mr-2" />
+            Tentar novamente
+          </Button>
+        </div>
+      ) : clients?.length === 0 ? (
         <EmptyState
           icon={<Building2 className="size-8" />}
           title="Nenhum cliente ainda"
@@ -55,7 +79,7 @@ export default function ClientesPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {clients.map((client) => (
+          {clients?.map((client) => (
             <Link key={client.id} href={`/clientes/${client.slug}`}>
               <Card className="p-5 transition-shadow hover:shadow-md">
                 <div
